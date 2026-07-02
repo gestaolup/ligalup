@@ -354,87 +354,85 @@ window.initFinance = function(deps) {
         refreshAllUI();
     }
 
-    // Registrar Listeners uma única vez ao carregar o script
-    document.addEventListener('DOMContentLoaded', () => {
-        // Event Handler: Register Participant
-        const formAddParticipant = document.getElementById('form-add-participant');
-        if (formAddParticipant) {
-            formAddParticipant.addEventListener('submit', (e) => {
-                e.preventDefault();
-                if (!selectedFinanceEventId) {
-                    alert('Selecione um evento primeiro!');
-                    return;
-                }
-                const DB = getDB();
-                const DB_Engine = getDBEngine();
-                const nome = document.getElementById('part-nome').value;
-                const ra = document.getElementById('part-ra').value;
-                const valor = parseFloat(document.getElementById('part-valor').value) || 0;
-                const status = document.getElementById('part-status').value;
-                const forma = document.getElementById('part-forma').value;
-                const obs = document.getElementById('part-obs').value;
+    // Registrar Listeners
+    // Event Handler: Register Participant
+    const formAddParticipant = document.getElementById('form-add-participant');
+    if (formAddParticipant) {
+        formAddParticipant.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (!selectedFinanceEventId) {
+                alert('Selecione um evento primeiro!');
+                return;
+            }
+            const DB = getDB();
+            const DB_Engine = getDBEngine();
+            const nome = document.getElementById('part-nome').value;
+            const ra = document.getElementById('part-ra').value;
+            const valor = parseFloat(document.getElementById('part-valor').value) || 0;
+            const status = document.getElementById('part-status').value;
+            const forma = document.getElementById('part-forma').value;
+            const obs = document.getElementById('part-obs').value;
 
-                DB_Engine.insertParticipanteEvento(selectedFinanceEventId, nome, ra, valor, status, forma, obs);
-                
-                // Reset input values
-                document.getElementById('part-nome').value = '';
-                document.getElementById('part-ra').value = '';
-                document.getElementById('part-obs').value = '';
-                
-                // Set value back to default
-                const event = DB.eventos.find(evt => evt.id === selectedFinanceEventId);
-                if (event) {
-                    document.getElementById('part-valor').value = event.valor_taxa_base.toFixed(2);
-                }
+            DB_Engine.insertParticipanteEvento(selectedFinanceEventId, nome, ra, valor, status, forma, obs);
+            
+            // Reset input values
+            document.getElementById('part-nome').value = '';
+            document.getElementById('part-ra').value = '';
+            document.getElementById('part-obs').value = '';
+            
+            // Set value back to default
+            const event = DB.eventos.find(evt => evt.id === selectedFinanceEventId);
+            if (event) {
+                document.getElementById('part-valor').value = event.valor_taxa_base.toFixed(2);
+            }
+        });
+    }
+
+    // Event Handler: Add Lançamento Manual
+    const btnAddFinance = document.getElementById('btn-add-finance');
+    if (btnAddFinance) {
+        btnAddFinance.addEventListener('click', () => {
+            const DB = getDB();
+            const tipo = document.getElementById('fin-type').value;
+            const cat = document.getElementById('fin-category').value;
+            const val = parseFloat(document.getElementById('fin-val').value) || 0;
+            const date = document.getElementById('fin-date').value || new Date().toISOString().split('T')[0];
+
+            if (!cat || val <= 0) {
+                alert('Preencha os campos de categoria e valor corretamente!');
+                return;
+            }
+
+            const newId = 'lf_' + Date.now();
+            DB.lancamentos_financeiros.push({
+                id: newId,
+                tipo: tipo,
+                categoria: cat,
+                valor: val,
+                data_competencia: date,
+                status_conciliacao: false,
+                evento_id: null,
+                produto_id: null
             });
-        }
 
-        // Event Handler: Add Lançamento Manual
-        const btnAddFinance = document.getElementById('btn-add-finance');
-        if (btnAddFinance) {
-            btnAddFinance.addEventListener('click', () => {
-                const DB = getDB();
-                const tipo = document.getElementById('fin-type').value;
-                const cat = document.getElementById('fin-category').value;
-                const val = parseFloat(document.getElementById('fin-val').value) || 0;
-                const date = document.getElementById('fin-date').value || new Date().toISOString().split('T')[0];
+            logSQL(`INSERT INTO lancamentos_financeiros (tipo, categoria, valor, data_competencia, status_conciliacao) VALUES ('${tipo}', '${cat}', ${val}, '${date}', FALSE);`, 'query');
+            logSQL(`Lançamento manual inserido no caixa em estado 'Pendente'.`, 'success');
 
-                if (!cat || val <= 0) {
-                    alert('Preencha os campos de categoria e valor corretamente!');
-                    return;
-                }
+            document.getElementById('fin-category').value = '';
+            document.getElementById('fin-val').value = '';
+            refreshAllUI();
+        });
+    }
 
-                const newId = 'lf_' + Date.now();
-                DB.lancamentos_financeiros.push({
-                    id: newId,
-                    tipo: tipo,
-                    categoria: cat,
-                    valor: val,
-                    data_competencia: date,
-                    status_conciliacao: false,
-                    evento_id: null,
-                    produto_id: null
-                });
-
-                logSQL(`INSERT INTO lancamentos_financeiros (tipo, categoria, valor, data_competencia, status_conciliacao) VALUES ('${tipo}', '${cat}', ${val}, '${date}', FALSE);`, 'query');
-                logSQL(`Lançamento manual inserido no caixa em estado 'Pendente'.`, 'success');
-
-                document.getElementById('fin-category').value = '';
-                document.getElementById('fin-val').value = '';
-                refreshAllUI();
-            });
-        }
-
-        // Event Handler: Lançamento de Estorno (Forçando correção manual - RN-FIN-01)
-        const btnEstornoFinance = document.getElementById('btn-estorno-finance');
-        if (btnEstornoFinance) {
-            btnEstornoFinance.addEventListener('click', () => {
-                const idToEstorno = prompt("Digite o nome ou ID do Lançamento Conciliado que deseja estornar (ex: 'lf1'):");
-                if (!idToEstorno) return;
-                performEstorno(idToEstorno);
-            });
-        }
-    });
+    // Event Handler: Lançamento de Estorno (Forçando correção manual - RN-FIN-01)
+    const btnEstornoFinance = document.getElementById('btn-estorno-finance');
+    if (btnEstornoFinance) {
+        btnEstornoFinance.addEventListener('click', () => {
+            const idToEstorno = prompt("Digite o nome ou ID do Lançamento Conciliado que deseja estornar (ex: 'lf1'):");
+            if (!idToEstorno) return;
+            performEstorno(idToEstorno);
+        });
+    }
 
     // Expor API Pública do módulo
     window.FinanceModule = {

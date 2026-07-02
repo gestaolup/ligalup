@@ -189,188 +189,186 @@ window.initUserAccess = function(deps) {
         document.querySelectorAll('#users-table tbody tr').forEach(r => r.style.background = '');
     }
 
-    // Bind de eventos quando a página estiver carregada
-    document.addEventListener('DOMContentLoaded', () => {
-        // Reactive search: filter user table on input
-        const searchUsersInput = document.getElementById('search-users-input');
-        if (searchUsersInput) {
-            searchUsersInput.addEventListener('input', () => renderAccessModule());
-        }
+    // Bind de eventos
+    // Reactive search: filter user table on input
+    const searchUsersInput = document.getElementById('search-users-input');
+    if (searchUsersInput) {
+        searchUsersInput.addEventListener('input', () => renderAccessModule());
+    }
 
-        // Toggle checkbox status text
-        const userStatusCheckbox = document.getElementById('user-status');
-        if (userStatusCheckbox) {
-            userStatusCheckbox.addEventListener('change', () => {
-                document.getElementById('user-status-text').innerText = userStatusCheckbox.checked ? 'Conta Ativa' : 'Conta Inativa';
-            });
-        }
+    // Toggle checkbox status text
+    const userStatusCheckbox = document.getElementById('user-status');
+    if (userStatusCheckbox) {
+        userStatusCheckbox.addEventListener('change', () => {
+            document.getElementById('user-status-text').innerText = userStatusCheckbox.checked ? 'Conta Ativa' : 'Conta Inativa';
+        });
+    }
 
-        // User form submit handler
-        const formManageUser = document.getElementById('form-manage-user');
-        if (formManageUser) {
-            formManageUser.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const DB_Engine = getDBEngine();
-                const editId = document.getElementById('user-edit-id').value;
-                const data = {
-                    id: editId || null,
-                    nome: document.getElementById('user-nome').value,
-                    email: document.getElementById('user-email').value,
-                    password: document.getElementById('user-password').value,
-                    cargo: document.getElementById('user-cargo').value,
-                    diretoria: document.getElementById('user-diretoria').value,
-                    status: document.getElementById('user-status').checked
-                };
+    // User form submit handler
+    const formManageUser = document.getElementById('form-manage-user');
+    if (formManageUser) {
+        formManageUser.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const DB_Engine = getDBEngine();
+            const editId = document.getElementById('user-edit-id').value;
+            const data = {
+                id: editId || null,
+                nome: document.getElementById('user-nome').value,
+                email: document.getElementById('user-email').value,
+                password: document.getElementById('user-password').value,
+                cargo: document.getElementById('user-cargo').value,
+                diretoria: document.getElementById('user-diretoria').value,
+                status: document.getElementById('user-status').checked
+            };
 
-                const ok = DB_Engine.saveUsuario(data);
-                if (ok) resetUserForm();
-            });
-        }
+            const ok = DB_Engine.saveUsuario(data);
+            if (ok) resetUserForm();
+        });
+    }
 
-        const btnCancelEdit = document.getElementById('btn-cancel-user-edit');
-        if (btnCancelEdit) {
-            btnCancelEdit.addEventListener('click', () => resetUserForm());
-        }
+    const btnCancelEdit = document.getElementById('btn-cancel-user-edit');
+    if (btnCancelEdit) {
+        btnCancelEdit.addEventListener('click', () => resetUserForm());
+    }
 
-        // --- LOGICA DE GERENCIAMENTO DE PERFIL INDIVIDUAL ---
-        const btnProfile = document.getElementById('btn-profile-dropdown');
-        const profileDropdown = document.getElementById('profile-dropdown');
-        const btnGoSettings = document.getElementById('btn-go-to-settings');
-        const btnDropdownLogout = document.getElementById('btn-dropdown-logout');
+    // --- LOGICA DE GERENCIAMENTO DE PERFIL INDIVIDUAL ---
+    const btnProfile = document.getElementById('btn-profile-dropdown');
+    const profileDropdown = document.getElementById('profile-dropdown');
+    const btnGoSettings = document.getElementById('btn-go-to-settings');
+    const btnDropdownLogout = document.getElementById('btn-dropdown-logout');
 
-        if (btnProfile && profileDropdown) {
-            btnProfile.addEventListener('click', (e) => {
-                e.stopPropagation();
-                profileDropdown.style.display = profileDropdown.style.display === 'none' ? 'block' : 'none';
-            });
+    if (btnProfile && profileDropdown) {
+        btnProfile.addEventListener('click', (e) => {
+            e.stopPropagation();
+            profileDropdown.style.display = profileDropdown.style.display === 'none' ? 'block' : 'none';
+        });
 
-            document.addEventListener('click', () => {
-                profileDropdown.style.display = 'none';
-            });
+        document.addEventListener('click', () => {
+            profileDropdown.style.display = 'none';
+        });
 
-            profileDropdown.addEventListener('click', (e) => {
-                e.stopPropagation();
-            });
-        }
+        profileDropdown.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
 
-        if (btnGoSettings) {
-            btnGoSettings.addEventListener('click', () => {
-                const currentUser = getCurrentUser();
-                if (profileDropdown) profileDropdown.style.display = 'none';
+    if (btnGoSettings) {
+        btnGoSettings.addEventListener('click', () => {
+            const currentUser = getCurrentUser();
+            if (profileDropdown) profileDropdown.style.display = 'none';
 
-                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-                document.querySelectorAll('.module-section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.querySelectorAll('.module-section').forEach(s => s.classList.remove('active'));
 
-                const configSection = document.getElementById('mod-configuracoes');
-                if (configSection) {
-                    configSection.classList.add('active');
-                }
+            const configSection = document.getElementById('mod-configuracoes');
+            if (configSection) {
+                configSection.classList.add('active');
+            }
 
-                if (currentUser) {
-                    document.getElementById('profile-name').value = currentUser.nome;
-                    document.getElementById('profile-email').value = currentUser.email;
-                    document.getElementById('profile-password').value = '';
-                    document.getElementById('profile-password-confirm').value = '';
-                    document.getElementById('profile-avatar-url').value = currentUser.avatar && !currentUser.avatar.startsWith('data:') ? currentUser.avatar : '';
-                    document.getElementById('profile-avatar-file').value = '';
-                }
-            });
-        }
+            if (currentUser) {
+                document.getElementById('profile-name').value = currentUser.nome;
+                document.getElementById('profile-email').value = currentUser.email;
+                document.getElementById('profile-password').value = '';
+                document.getElementById('profile-password-confirm').value = '';
+                document.getElementById('profile-avatar-url').value = currentUser.avatar && !currentUser.avatar.startsWith('data:') ? currentUser.avatar : '';
+                document.getElementById('profile-avatar-file').value = '';
+            }
+        });
+    }
 
-        if (btnDropdownLogout) {
-            btnDropdownLogout.addEventListener('click', () => {
-                if (profileDropdown) profileDropdown.style.display = 'none';
-                const logoutBtn = document.getElementById('btn-logout');
-                if (logoutBtn) logoutBtn.click();
-            });
-        }
+    if (btnDropdownLogout) {
+        btnDropdownLogout.addEventListener('click', () => {
+            if (profileDropdown) profileDropdown.style.display = 'none';
+            const logoutBtn = document.getElementById('btn-logout');
+            if (logoutBtn) logoutBtn.click();
+        });
+    }
 
-        const formProfileSettings = document.getElementById('form-profile-settings');
-        if (formProfileSettings) {
-            formProfileSettings.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const currentUser = getCurrentUser();
-                const DB = getDB();
-                if (!currentUser) return;
+    const formProfileSettings = document.getElementById('form-profile-settings');
+    if (formProfileSettings) {
+        formProfileSettings.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const currentUser = getCurrentUser();
+            const DB = getDB();
+            if (!currentUser) return;
 
-                const email = document.getElementById('profile-email').value.trim();
-                const password = document.getElementById('profile-password').value;
-                const passwordConfirm = document.getElementById('profile-password-confirm').value;
-                const avatarUrl = document.getElementById('profile-avatar-url').value.trim();
-                const avatarFileInput = document.getElementById('profile-avatar-file');
-                const saveMsg = document.getElementById('profile-save-message');
+            const email = document.getElementById('profile-email').value.trim();
+            const password = document.getElementById('profile-password').value;
+            const passwordConfirm = document.getElementById('profile-password-confirm').value;
+            const avatarUrl = document.getElementById('profile-avatar-url').value.trim();
+            const avatarFileInput = document.getElementById('profile-avatar-file');
+            const saveMsg = document.getElementById('profile-save-message');
 
-                if (password && password.length < 6) {
-                    alert('A nova senha deve conter pelo menos 6 caracteres!');
-                    return;
-                }
+            if (password && password.length < 6) {
+                alert('A nova senha deve conter pelo menos 6 caracteres!');
+                return;
+            }
 
-                if (password !== passwordConfirm) {
-                    alert('A nova senha e a confirmação de senha não coincidem!');
-                    return;
-                }
+            if (password !== passwordConfirm) {
+                alert('A nova senha e a confirmação de senha não coincidem!');
+                return;
+            }
 
-                const executeSave = (avatarData) => {
-                    const userInDb = DB.usuarios.find(u => u.id === currentUser.id);
-                    if (userInDb) {
-                        userInDb.email = email;
-                        if (password) {
-                            userInDb.senha = password;
-                            userInDb.password_hash = `[HASH de '${password}']`;
-                        }
-                        if (avatarData) {
-                            userInDb.avatar = avatarData;
-                        }
-
-                        currentUser.email = email;
-                        if (password) {
-                            currentUser.senha = password;
-                            currentUser.password_hash = userInDb.password_hash;
-                        }
-                        if (avatarData) {
-                            currentUser.avatar = avatarData;
-                        }
-
-                        setCurrentUser(currentUser);
-                        localStorage.setItem('lup_user', JSON.stringify(currentUser));
-
-                        logSQL(`UPDATE usuarios SET email = '${email}'${password ? `, senha = [HASH]` : ''}${avatarData ? `, avatar = [IMAGE]` : ''} WHERE id = '${currentUser.id}';`, 'query');
-                        logSQL(`Perfil de '${currentUser.nome}' atualizado com sucesso.`, 'success');
-
-                        const userAvatar = currentUser.avatar || 'assets/default-avatar.png';
-                        const imgHeader = document.getElementById('header-user-avatar');
-                        const imgDropdown = document.getElementById('dropdown-user-avatar');
-                        if (imgHeader) imgHeader.src = userAvatar;
-                        if (imgDropdown) imgDropdown.src = userAvatar;
-
-                        const emailEl = document.getElementById('dropdown-user-email');
-                        if (emailEl) emailEl.textContent = email;
-
-                        if (saveMsg) {
-                            saveMsg.textContent = 'Alterações salvas com sucesso!';
-                            saveMsg.style.display = 'inline-block';
-                            setTimeout(() => {
-                                saveMsg.style.display = 'none';
-                            }, 3000);
-                        }
-                        refreshAllUI();
+            const executeSave = (avatarData) => {
+                const userInDb = DB.usuarios.find(u => u.id === currentUser.id);
+                if (userInDb) {
+                    userInDb.email = email;
+                    if (password) {
+                        userInDb.senha = password;
+                        userInDb.password_hash = `[HASH de '${password}']`;
                     }
-                };
+                    if (avatarData) {
+                        userInDb.avatar = avatarData;
+                    }
 
-                if (avatarFileInput && avatarFileInput.files && avatarFileInput.files[0]) {
-                    const reader = new FileReader();
-                    reader.onload = function(evt) {
-                        executeSave(evt.target.result);
-                    };
-                    reader.readAsDataURL(avatarFileInput.files[0]);
-                } else if (avatarUrl) {
-                    executeSave(avatarUrl);
-                } else {
-                    executeSave(null);
+                    currentUser.email = email;
+                    if (password) {
+                        currentUser.senha = password;
+                        currentUser.password_hash = userInDb.password_hash;
+                    }
+                    if (avatarData) {
+                        currentUser.avatar = avatarData;
+                    }
+
+                    setCurrentUser(currentUser);
+                    localStorage.setItem('lup_user', JSON.stringify(currentUser));
+
+                    logSQL(`UPDATE usuarios SET email = '${email}'${password ? `, senha = [HASH]` : ''}${avatarData ? `, avatar = [IMAGE]` : ''} WHERE id = '${currentUser.id}';`, 'query');
+                    logSQL(`Perfil de '${currentUser.nome}' atualizado com sucesso.`, 'success');
+
+                    const userAvatar = currentUser.avatar || 'assets/default-avatar.png';
+                    const imgHeader = document.getElementById('header-user-avatar');
+                    const imgDropdown = document.getElementById('dropdown-user-avatar');
+                    if (imgHeader) imgHeader.src = userAvatar;
+                    if (imgDropdown) imgDropdown.src = userAvatar;
+
+                    const emailEl = document.getElementById('dropdown-user-email');
+                    if (emailEl) emailEl.textContent = email;
+
+                    if (saveMsg) {
+                        saveMsg.textContent = 'Alterações salvas com sucesso!';
+                        saveMsg.style.display = 'inline-block';
+                        setTimeout(() => {
+                            saveMsg.style.display = 'none';
+                        }, 3000);
+                    }
+                    refreshAllUI();
                 }
-            });
-        }
-    });
+            };
+
+            if (avatarFileInput && avatarFileInput.files && avatarFileInput.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    executeSave(evt.target.result);
+                };
+                reader.readAsDataURL(avatarFileInput.files[0]);
+            } else if (avatarUrl) {
+                executeSave(avatarUrl);
+            } else {
+                executeSave(null);
+            }
+        });
+    }
 
     // Expor globalmente para manter compatibilidade retroativa e uso nas closures
     window.canWrite = canWrite;

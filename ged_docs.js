@@ -205,136 +205,134 @@ window.initGED = function(deps) {
         document.getElementById('partner-detail-overlay').classList.remove('active');
     }
 
-    // Registra Listeners e Event Handlers no DOMContentLoaded
-    document.addEventListener('DOMContentLoaded', () => {
-        // Event Handler: Create Partner
-        const formCreatePartner = document.getElementById('form-create-partner');
-        if (formCreatePartner) {
-            formCreatePartner.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const DB = getDB();
-                const currentUser = getCurrentUser();
-                const nome = document.getElementById('partner-nome').value;
-                const tipo = document.getElementById('partner-tipo').value;
-                const link = document.getElementById('partner-proposta-url').value;
-                
-                const newId = 'par_' + Date.now();
-                DB.parceiros_patrocinadores.push({
-                    id: newId,
-                    nome_empresa: nome,
-                    tipo_parceria: tipo,
-                    status_funil: 'Aguardando Contrato',
-                    link_proposta_drive: link
-                });
-                
+    // Registra Listeners e Event Handlers
+    // Event Handler: Create Partner
+    const formCreatePartner = document.getElementById('form-create-partner');
+    if (formCreatePartner) {
+        formCreatePartner.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const DB = getDB();
+            const currentUser = getCurrentUser();
+            const nome = document.getElementById('partner-nome').value;
+            const tipo = document.getElementById('partner-tipo').value;
+            const link = document.getElementById('partner-proposta-url').value;
+            
+            const newId = 'par_' + Date.now();
+            DB.parceiros_patrocinadores.push({
+                id: newId,
+                nome_empresa: nome,
+                tipo_parceria: tipo,
+                status_funil: 'Aguardando Contrato',
+                link_proposta_drive: link
+            });
+            
+            DB.logs_notificacoes.push({
+                id: 'log_' + Date.now(),
+                usuario_id: currentUser ? currentUser.id : 'u1',
+                tipo_notificacao: 'Sistema',
+                gatilho_regra: 'NOVA_PARCERIA',
+                destinatario_email: 'juridico@atleticalup.com.br',
+                status_entrega: 'ENVIADO',
+                data_envio: new Date().toISOString().replace('T', ' ').substring(0, 16),
+                erro_detalhe: null,
+                lida: false
+            });
+            
+            logSQL(`INSERT INTO parceiros_patrocinadores (nome_empresa, tipo_parceria, status_funil, link_proposta_drive) VALUES ('${nome}', '${tipo}', 'Aguardando Contrato', '${link}');`, 'query');
+            logSQL(`Notificação disparada para Diretoria Jurídica sobre nova proposta de parceria: ${nome}.`, 'success');
+            
+            formCreatePartner.reset();
+            refreshAllUI();
+        });
+    }
+
+    // Modal Close Listeners
+    const btnCloseDetail = document.getElementById('btn-close-partner-detail');
+    if (btnCloseDetail) btnCloseDetail.addEventListener('click', closePartnerDetailModal);
+
+    const btnCancelDetail = document.getElementById('btn-cancel-partner-detail');
+    if (btnCancelDetail) btnCancelDetail.addEventListener('click', closePartnerDetailModal);
+
+    // Modal Save Listener
+    const btnSaveDetail = document.getElementById('btn-save-partner-detail');
+    if (btnSaveDetail) {
+        btnSaveDetail.addEventListener('click', () => {
+            const DB = getDB();
+            const currentUser = getCurrentUser();
+            const partnerId = document.getElementById('detail-partner-id').value;
+            const newStatus = document.getElementById('detail-partner-status').value;
+
+            const partner = DB.parceiros_patrocinadores.find(p => p.id === partnerId);
+            if (!partner) return;
+
+            const oldStatus = partner.status_funil;
+            if (oldStatus !== newStatus) {
+                partner.status_funil = newStatus;
+
+                logSQL(`UPDATE parceiros_patrocinadores SET status_funil = '${newStatus}' WHERE id = '${partnerId}';`, 'query');
+                logSQL(`Status da parceria '${partner.nome_empresa}' atualizado de '${oldStatus}' para '${newStatus}' pelo Jurídico.`, 'success');
+
                 DB.logs_notificacoes.push({
                     id: 'log_' + Date.now(),
-                    usuario_id: currentUser ? currentUser.id : 'u1',
-                    tipo_notificacao: 'Sistema',
-                    gatilho_regra: 'NOVA_PARCERIA',
-                    destinatario_email: 'juridico@atleticalup.com.br',
+                    usuario_id: currentUser ? currentUser.id : 'u5',
+                    tipo_notificacao: 'System',
+                    gatilho_regra: 'STATUS_PARCERIA_JURIDICO',
+                    destinatario_email: 'parcerias@atleticalup.com.br',
                     status_entrega: 'ENVIADO',
                     data_envio: new Date().toISOString().replace('T', ' ').substring(0, 16),
                     erro_detalhe: null,
                     lida: false
                 });
-                
-                logSQL(`INSERT INTO parceiros_patrocinadores (nome_empresa, tipo_parceria, status_funil, link_proposta_drive) VALUES ('${nome}', '${tipo}', 'Aguardando Contrato', '${link}');`, 'query');
-                logSQL(`Notificação disparada para Diretoria Jurídica sobre nova proposta de parceria: ${nome}.`, 'success');
-                
-                formCreatePartner.reset();
-                refreshAllUI();
+            }
+
+            closePartnerDetailModal();
+            refreshAllUI();
+        });
+    }
+
+    // Event Handler: Upload document link to GED
+    const btnAddDoc = document.getElementById('btn-add-document');
+    if (btnAddDoc) {
+        btnAddDoc.addEventListener('click', () => {
+            const DB = getDB();
+            const title = document.getElementById('doc-title').value;
+            const type = document.getElementById('doc-type').value;
+            const url = document.getElementById('doc-url').value;
+            const expiry = document.getElementById('doc-expiry').value;
+            const partnerId = document.getElementById('doc-partner-select').value;
+
+            if (!title || !url) {
+                alert('Preencha os dados do documento (título e URL do Drive são obrigatórios)!');
+                return;
+            }
+
+            const newId = 'dc_' + Date.now();
+            DB.documentos_contratos.push({
+                id: newId,
+                titulo: title,
+                tipo_documento: type,
+                arquivo_url: url,
+                data_vencimento: expiry || null,
+                parceiro_id: partnerId || null
             });
-        }
 
-        // Modal Close Listeners
-        const btnCloseDetail = document.getElementById('btn-close-partner-detail');
-        if (btnCloseDetail) btnCloseDetail.addEventListener('click', closePartnerDetailModal);
-
-        const btnCancelDetail = document.getElementById('btn-cancel-partner-detail');
-        if (btnCancelDetail) btnCancelDetail.addEventListener('click', closePartnerDetailModal);
-
-        // Modal Save Listener
-        const btnSaveDetail = document.getElementById('btn-save-partner-detail');
-        if (btnSaveDetail) {
-            btnSaveDetail.addEventListener('click', () => {
-                const DB = getDB();
-                const currentUser = getCurrentUser();
-                const partnerId = document.getElementById('detail-partner-id').value;
-                const newStatus = document.getElementById('detail-partner-status').value;
-
+            logSQL(`INSERT INTO documentos_contratos (titulo, tipo_documento, arquivo_url, data_vencimento, parceiro_id) VALUES ('${title}', '${type}', '${url}', '${expiry}', '${partnerId}');`, 'query');
+            logSQL(`GED: Arquivo de texto simples anexado com sucesso para auditoria e conciliação jurídica de parceria.`, 'success');
+            
+            if (type === 'Contrato' && partnerId) {
                 const partner = DB.parceiros_patrocinadores.find(p => p.id === partnerId);
-                if (!partner) return;
-
-                const oldStatus = partner.status_funil;
-                if (oldStatus !== newStatus) {
-                    partner.status_funil = newStatus;
-
-                    logSQL(`UPDATE parceiros_patrocinadores SET status_funil = '${newStatus}' WHERE id = '${partnerId}';`, 'query');
-                    logSQL(`Status da parceria '${partner.nome_empresa}' atualizado de '${oldStatus}' para '${newStatus}' pelo Jurídico.`, 'success');
-
-                    DB.logs_notificacoes.push({
-                        id: 'log_' + Date.now(),
-                        usuario_id: currentUser ? currentUser.id : 'u5',
-                        tipo_notificacao: 'System',
-                        gatilho_regra: 'STATUS_PARCERIA_JURIDICO',
-                        destinatario_email: 'parcerias@atleticalup.com.br',
-                        status_entrega: 'ENVIADO',
-                        data_envio: new Date().toISOString().replace('T', ' ').substring(0, 16),
-                        erro_detalhe: null,
-                        lida: false
-                    });
+                if (partner && partner.status_funil !== 'Contrato Ativo') {
+                    partner.status_funil = 'Contrato Ativo';
+                    logSQL(`UPDATE parceiros_patrocinadores SET status_funil='Contrato Ativo' WHERE id='${partnerId}';`, 'query');
+                    logSQL(`Parceria ${partner.nome_empresa} ativada automaticamente após vínculo do Contrato no GED!`, 'success');
                 }
+            }
 
-                closePartnerDetailModal();
-                refreshAllUI();
-            });
-        }
-
-        // Event Handler: Upload document link to GED
-        const btnAddDoc = document.getElementById('btn-add-document');
-        if (btnAddDoc) {
-            btnAddDoc.addEventListener('click', () => {
-                const DB = getDB();
-                const title = document.getElementById('doc-title').value;
-                const type = document.getElementById('doc-type').value;
-                const url = document.getElementById('doc-url').value;
-                const expiry = document.getElementById('doc-expiry').value;
-                const partnerId = document.getElementById('doc-partner-select').value;
-
-                if (!title || !url) {
-                    alert('Preencha os dados do documento (título e URL do Drive são obrigatórios)!');
-                    return;
-                }
-
-                const newId = 'dc_' + Date.now();
-                DB.documentos_contratos.push({
-                    id: newId,
-                    titulo: title,
-                    tipo_documento: type,
-                    arquivo_url: url,
-                    data_vencimento: expiry || null,
-                    parceiro_id: partnerId || null
-                });
-
-                logSQL(`INSERT INTO documentos_contratos (titulo, tipo_documento, arquivo_url, data_vencimento, parceiro_id) VALUES ('${title}', '${type}', '${url}', '${expiry}', '${partnerId}');`, 'query');
-                logSQL(`GED: Arquivo de texto simples anexado com sucesso para auditoria e conciliação jurídica de parceria.`, 'success');
-                
-                if (type === 'Contrato' && partnerId) {
-                    const partner = DB.parceiros_patrocinadores.find(p => p.id === partnerId);
-                    if (partner && partner.status_funil !== 'Contrato Ativo') {
-                        partner.status_funil = 'Contrato Ativo';
-                        logSQL(`UPDATE parceiros_patrocinadores SET status_funil='Contrato Ativo' WHERE id='${partnerId}';`, 'query');
-                        logSQL(`Parceria ${partner.nome_empresa} ativada automaticamente após vínculo do Contrato no GED!`, 'success');
-                    }
-                }
-
-                document.getElementById('doc-title').value = '';
-                document.getElementById('doc-url').value = '';
-                refreshAllUI();
-            });
-        }
-    });
+            document.getElementById('doc-title').value = '';
+            document.getElementById('doc-url').value = '';
+            refreshAllUI();
+        });
+    }
 
     // Expor API Pública do módulo
     window.GEDModule = {
