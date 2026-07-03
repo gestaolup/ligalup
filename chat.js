@@ -26,29 +26,44 @@ let chatState = {
   filteredConversations: [],
 };
 
-let newChatState = { selectedUserId: null };
+let newChatState = { 
+  selectedUserId: null,
+  isGroupMode: false,
+  selectedUserIds: []
+};
 
 // â”€â”€ 2. BUILDER DE DADOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// ConstrÃ³i o array de conversas a partir do window.DB em memÃ³ria,
-// filtrando por participaÃ§Ã£o (privado) ou acesso aberto (grupo).
 function buildChatFromDB() {
     const DB = window.DB;
-    if (!DB || !DB.chat_conversations || !window.currentUser) return [];
+    if (!DB || !window.currentUser) return [];
 
-    // Conversas privadas sÃ£o filtradas por chat_participants.
-    // Conversas de grupo (type === 'Grupo') sÃ£o visÃ­veis a todos.
+    DB.chat_grupos = DB.chat_grupos || [];
+    DB.chat_membros_grupo = DB.chat_membros_grupo || [];
+    DB.chat_conversations = DB.chat_conversations || [];
+
     const myConvIds = new Set(
         (DB.chat_participants || [])
             .filter(p => p.user_id === window.currentUser.id)
             .map(p => p.conversation_id)
     );
-
     const visibleConvs = DB.chat_conversations.filter(conv =>
         conv.type === 'Grupo' || myConvIds.has(conv.id)
     );
 
-    return visibleConvs.map(conv => {
-        const msgs = (DB.chat_messages || []).filter(m => m.conversation_id === conv.id)
+    const myGroupIds = new Set(
+        DB.chat_membros_grupo
+            .filter(m => m.user_id === window.currentUser.id)
+            .map(m => m.grupo_id)
+    );
+    const newGroups = DB.chat_grupos.filter(g => myGroupIds.has(g.id));
+
+    const unifiedList = [
+        ...visibleConvs.map(c => ({ id: c.id, name: c.name, type: c.type, dbType: 'legacy' })),
+        ...newGroups.map(g => ({ id: g.id, name: g.nome, type: 'Grupo', dbType: 'new' }))
+    ];
+
+    return unifiedList.map(item => {
+        const msgs = (DB.chat_messages || []).filter(m => m.conversation_id === item.id || m.grupo_id === item.id)
             .sort((a, b) => new Date(a.sent_at) - new Date(b.sent_at))
             .map(m => {
                 const isMe = window.currentUser && m.sender_id === window.currentUser.id;
@@ -64,9 +79,10 @@ function buildChatFromDB() {
             });
         const lastMsg = msgs[msgs.length - 1];
         return {
-            id: conv.id,
-            name: conv.name,
-            role: conv.type,
+            id: item.id,
+            name: item.name,
+            role: item.type,
+            dbType: item.dbType,
             avatar: null,
             lastMessage: lastMsg ? lastMsg.text : 'Sem mensagens',
             timestamp: lastMsg ? lastMsg.time : '',
@@ -144,6 +160,27 @@ function initChatModule() {
                     DB.chat_conversations.push(data);
                 }
             }
+            chatState.conversations = buildChatFromDB();
+            chatState.filteredConversations = [...chatState.conversations];
+            renderConversationList(chatState.filteredConversations);
+        }
+    })
+    // â”€â”€ Novo grupo (recebimento passivo) â”€â”€
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_grupos' }, payload => {
+        const DB = window.DB;
+        DB.chat_grupos = DB.chat_grupos || [];
+        if (!DB.chat_grupos.find(g => g.id === payload.new.id)) {
+            DB.chat_grupos.push(payload.new);
+        }
+    })
+    // â”€â”€ Novo membro de grupo â”€â”€
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_membros_grupo' }, payload => {
+        const DB = window.DB;
+        DB.chat_membros_grupo = DB.chat_membros_grupo || [];
+        if (!DB.chat_membros_grupo.find(m => m.grupo_id === payload.new.grupo_id && m.user_id === payload.new.user_id)) {
+            DB.chat_membros_grupo.push(payload.new);
+        }
+        if (window.currentUser && payload.new.user_id === window.currentUser.id) {
             chatState.conversations = buildChatFromDB();
             chatState.filteredConversations = [...chatState.conversations];
             renderConversationList(chatState.filteredConversations);
@@ -340,19 +377,31 @@ console.log('[CHAT] Displays apÃ³s alteraÃ§Ã£o:', {
     emptyDiv.innerHTML = '<i class="fas fa-comment-dots"></i><p>Nenhuma mensagem ainda. Inicie a conversa!</p>';
     messagesBodyEl.appendChild(emptyDiv);
   } else {
-    // IteraÃ§Ã£o segura: texto do usuÃ¡rio (msg.text e msg.time) injetado exclusivamente via
-    // .textContent, impedindo que HTML ou scripts embutidos sejam interpretados pelo browser.
+    const isGroup = conv.role === 'Grupo';
     messages.forEach(msg => {
       const wrapper = document.createElement('div');
       wrapper.className = `chat-msg ${msg.senderId === 'me' ? 'msg-sent' : 'msg-received'}`;
 
+      if (isGroup && msg.senderId !== 'me') {
+          const senderLabel = document.createElement('div');
+          senderLabel.className = 'msg-sender-name';
+          senderLabel.textContent = msg.senderName;
+          senderLabel.style.fontSize = '10px';
+          senderLabel.style.fontWeight = 'bold';
+          senderLabel.style.color = 'var(--accent)';
+          senderLabel.style.marginBottom = '4px';
+          wrapper.appendChild(senderLabel);
+      }
+
       const bubble = document.createElement('div');
       bubble.className = 'msg-bubble';
-      bubble.textContent = msg.text ?? ''; // SAFE: nÃ£o interpreta HTML
+      
+      const textNode = document.createTextNode(msg.text ?? '');
+      bubble.appendChild(textNode);
 
       const time = document.createElement('span');
       time.className = 'msg-time';
-      time.textContent = msg.time ?? ''; // SAFE: nÃ£o interpreta HTML
+      time.textContent = msg.time ?? '';
 
       wrapper.appendChild(bubble);
       wrapper.appendChild(time);
@@ -380,13 +429,21 @@ async function sendMessage() {
       return;
   }
 
+  const targetConv = chatState.conversations.find(c => c.id === chatState.selectedConversationId);
+  const isNewGroup = targetConv && targetConv.dbType === 'new';
+
   const newMsg = {
     id: crypto.randomUUID(),
-    conversation_id: chatState.selectedConversationId,
     sender_id: window.currentUser.id,
     body: text,
     sent_at: new Date().toISOString()
   };
+  
+  if (isNewGroup) {
+      newMsg.grupo_id = chatState.selectedConversationId;
+  } else {
+      newMsg.conversation_id = chatState.selectedConversationId;
+  }
 
   // Limpa o input e bloqueia envio adicional para prevenir double-click
   inputEl.value = '';
@@ -477,12 +534,32 @@ function bindChatEvents() {
 
 function openNewChatModal() {
   newChatState.selectedUserId = null;
+  newChatState.selectedUserIds = [];
+  newChatState.isGroupMode = false;
+  
+  const typePriv = document.getElementById('btn-chat-type-private');
+  const typeGrp = document.getElementById('btn-chat-type-group');
+  const nameWrap = document.getElementById('new-group-name-wrapper');
+  const nameInput = document.getElementById('new-group-name');
+  
+  if (typePriv && typeGrp) {
+      typePriv.style.borderColor = 'var(--accent)';
+      typePriv.style.color = 'var(--accent)';
+      typeGrp.style.borderColor = 'transparent';
+      typeGrp.style.color = '';
+  }
+  if (nameWrap) nameWrap.style.display = 'none';
+  if (nameInput) nameInput.value = '';
+
   const overlay  = document.getElementById('new-chat-overlay');
   const searchEl = document.getElementById('new-chat-search');
   const startBtn = document.getElementById('btn-start-conversation');
   if (!overlay) return;
   if (searchEl) searchEl.value = '';
-  if (startBtn) startBtn.disabled = true;
+  if (startBtn) {
+      startBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Iniciar Conversa';
+      startBtn.disabled = true;
+  }
   renderNewChatUserList('');
   overlay.classList.add('active');
   setTimeout(function() { if (searchEl) searchEl.focus(); }, 80);
@@ -527,11 +604,13 @@ function renderNewChatUserList(query) {
     const existingConv = chatState.conversations.find(function(c) { return c.participantId === u.id; });
     const parts = u.nome.split(' ');
     const initials = parts.slice(0, 2).map(function(w) { return w[0] || ''; }).join('');
-    const isSelected = newChatState.selectedUserId === u.id;
+    const isSelected = newChatState.isGroupMode 
+        ? newChatState.selectedUserIds.includes(u.id) 
+        : newChatState.selectedUserId === u.id;
     const diretoriaLabel = u.diretoria !== 'Nenhuma' ? u.diretoria : 'Geral';
-    const existingBadge = existingConv
+    const existingBadge = (!newChatState.isGroupMode && existingConv)
       ? '<span class="new-chat-badge-existing"><i class="fas fa-comments"></i> Existente</span>'
-      : '';
+      : (isSelected ? '<span class="new-chat-badge-existing" style="background:var(--accent);color:#000;"><i class="fas fa-check"></i> Selecionado</span>' : '');
     return (
       '<div class="new-chat-user-item' + (isSelected ? ' selected' : '') + '"' +
         ' data-user-id="' + u.id + '" tabindex="0" role="option" aria-selected="' + isSelected + '">' +
@@ -547,12 +626,23 @@ function renderNewChatUserList(query) {
 
   listEl.querySelectorAll('.new-chat-user-item').forEach(function(item) {
     function selectUser() {
-      newChatState.selectedUserId = item.dataset.userId;
-      listEl.querySelectorAll('.new-chat-user-item').forEach(function(el) {
-        el.classList.toggle('selected', el.dataset.userId === newChatState.selectedUserId);
-      });
+      const uId = item.dataset.userId;
+      if (newChatState.isGroupMode) {
+          const idx = newChatState.selectedUserIds.indexOf(uId);
+          if (idx > -1) newChatState.selectedUserIds.splice(idx, 1);
+          else newChatState.selectedUserIds.push(uId);
+      } else {
+          newChatState.selectedUserId = uId;
+      }
+      
+      renderNewChatUserList(document.getElementById('new-chat-search')?.value);
+      
       const startBtn = document.getElementById('btn-start-conversation');
-      if (startBtn) startBtn.disabled = false;
+      if (startBtn) {
+          startBtn.disabled = newChatState.isGroupMode 
+              ? newChatState.selectedUserIds.length === 0 
+              : !newChatState.selectedUserId;
+      }
     }
     item.addEventListener('click', selectUser);
     item.addEventListener('keydown', function(e) {
@@ -618,6 +708,45 @@ async function createConversation(targetUser) {
 
 // â”€â”€ bindNewChatModalEvents: registra todos os listeners do modal â”€â”€
 function bindNewChatModalEvents() {
+  var typePriv = document.getElementById('btn-chat-type-private');
+  var typeGrp = document.getElementById('btn-chat-type-group');
+  var nameWrap = document.getElementById('new-group-name-wrapper');
+  var startBtn = document.getElementById('btn-start-conversation');
+  var searchEl = document.getElementById('new-chat-search');
+
+  if (typePriv && typeGrp) {
+      typePriv.addEventListener('click', function() {
+          newChatState.isGroupMode = false;
+          typePriv.style.borderColor = 'var(--accent)';
+          typePriv.style.color = 'var(--accent)';
+          typeGrp.style.borderColor = 'transparent';
+          typeGrp.style.color = '';
+          if (nameWrap) nameWrap.style.display = 'none';
+          newChatState.selectedUserIds = [];
+          newChatState.selectedUserId = null;
+          renderNewChatUserList(searchEl?.value);
+          if (startBtn) {
+              startBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Iniciar Conversa';
+              startBtn.disabled = true;
+          }
+      });
+      typeGrp.addEventListener('click', function() {
+          newChatState.isGroupMode = true;
+          typeGrp.style.borderColor = 'var(--accent)';
+          typeGrp.style.color = 'var(--accent)';
+          typePriv.style.borderColor = 'transparent';
+          typePriv.style.color = '';
+          if (nameWrap) nameWrap.style.display = 'block';
+          newChatState.selectedUserIds = [];
+          newChatState.selectedUserId = null;
+          renderNewChatUserList(searchEl?.value);
+          if (startBtn) {
+              startBtn.innerHTML = '<i class="fas fa-users"></i> Criar Grupo';
+              startBtn.disabled = true;
+          }
+      });
+  }
+
   var btnNew = document.getElementById('btn-new-chat');
   if (btnNew) btnNew.addEventListener('click', openNewChatModal);
 
@@ -644,29 +773,64 @@ function bindNewChatModalEvents() {
   var btnStart = document.getElementById('btn-start-conversation');
   if (btnStart) {
     btnStart.addEventListener('click', async function() {
-      if (!newChatState.selectedUserId) return;
-      var targetUser = window.DB.usuarios.find(u => u.id === newChatState.selectedUserId);
-      if (!targetUser) return;
+      if (newChatState.isGroupMode) {
+          var groupName = document.getElementById('new-group-name')?.value?.trim();
+          if (!groupName) return alert('Digite o nome do grupo.');
+          if (newChatState.selectedUserIds.length === 0) return;
+          
+          btnStart.disabled = true;
+          btnStart.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Criando...';
+          
+          try {
+              var newGroup = {
+                  id: crypto.randomUUID(),
+                  nome: groupName,
+                  criador_id: window.currentUser.id,
+                  created_at: new Date().toISOString()
+              };
+              await window.supabaseClient.from('chat_grupos').insert(newGroup);
+              
+              var members = newChatState.selectedUserIds.map(function(uId) {
+                  return { grupo_id: newGroup.id, user_id: uId, papel: 'Membro' };
+              });
+              members.push({ grupo_id: newGroup.id, user_id: window.currentUser.id, papel: 'Admin' });
+              await window.supabaseClient.from('chat_membros_grupo').insert(members);
+              
+              await window.syncDBFromSupabase();
+              chatState.conversations = buildChatFromDB();
+              chatState.filteredConversations = [...chatState.conversations];
+              
+              closeNewChatModal();
+              renderConversationList(chatState.filteredConversations);
+              openConversation(newGroup.id);
+          } catch (err) {
+              console.error('[Chat] Erro ao criar grupo:', err);
+          } finally {
+              btnStart.disabled = false;
+              btnStart.innerHTML = '<i class="fas fa-users"></i> Criar Grupo';
+          }
+      } else {
+          if (!newChatState.selectedUserId) return;
+          var targetUser = window.DB.usuarios.find(u => u.id === newChatState.selectedUserId);
+          if (!targetUser) return;
 
-      // Desabilita botÃ£o para evitar double-click race conditions
-      btnStart.disabled = true;
-      const originalText = btnStart.innerText;
-      btnStart.innerText = 'Iniciando...';
+          btnStart.disabled = true;
+          const originalText = btnStart.innerText;
+          btnStart.innerText = 'Iniciando...';
 
-      try {
-        // createConversation Ã© assÃ­ncrona (persiste no Supabase e bloqueia duplicatas)
-        const convId = await createConversation(targetUser);
-        if (!convId) return;
+          try {
+            const convId = await createConversation(targetUser);
+            if (!convId) return;
 
-        closeNewChatModal();
-        renderConversationList(chatState.filteredConversations);
-        openConversation(convId);
-      } catch (err) {
-        console.error('[Chat] Erro ao criar conversa:', err);
-      } finally {
-        // Restaura o botÃ£o independentemente de sucesso ou falha
-        btnStart.disabled = false;
-        btnStart.innerText = originalText;
+            closeNewChatModal();
+            renderConversationList(chatState.filteredConversations);
+            openConversation(convId);
+          } catch (err) {
+            console.error('[Chat] Erro ao criar conversa:', err);
+          } finally {
+            btnStart.disabled = false;
+            btnStart.innerText = originalText;
+          }
       }
     });
   }
