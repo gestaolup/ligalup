@@ -1,4 +1,4 @@
-﻿// ============================================================================
+// ============================================================================
 // CHAT.JS â€” MÃ³dulo de ComunicaÃ§Ã£o Interna (Chat + Realtime) â€” LIGA-LUP
 //
 // Responsabilidade: toda a lÃ³gica de chat: estado, renderizaÃ§Ã£o de conversas,
@@ -58,7 +58,8 @@ function buildChatFromDB() {
                     senderId: isMe ? 'me' : m.sender_id,
                     senderName: isMe ? 'Eu' : (senderUser ? senderUser.nome : 'UsuÃ¡rio'),
                     text: m.body,
-                    time: new Date(m.sent_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+                    time: new Date(m.sent_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+                    rawTimestamp: new Date(m.sent_at).getTime()
                 };
             });
         const lastMsg = msgs[msgs.length - 1];
@@ -69,10 +70,11 @@ function buildChatFromDB() {
             avatar: null,
             lastMessage: lastMsg ? lastMsg.text : 'Sem mensagens',
             timestamp: lastMsg ? lastMsg.time : '',
+            sortValue: lastMsg ? lastMsg.rawTimestamp : 0,
             unread: 0,
             messages: msgs
         };
-    });
+    }).sort((a, b) => b.sortValue - a.sortValue);
 }
 
 // â”€â”€ 3. INICIALIZAÃ‡ÃƒO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -164,6 +166,7 @@ function initChatModule() {
 
   renderConversationList(chatState.filteredConversations);
   bindChatEvents();
+  bindNewChatModalEvents();
 }
 
 // â”€â”€ 4. RENDER DA LISTA DE CONVERSAS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -714,8 +717,6 @@ window.closeNewChatModal = closeNewChatModal;
 window.renderConversationList = renderConversationList;
 window.openConversation = openConversation;
 
-// Registra os listeners do modal Nova Conversa ao carregar o script
-document.addEventListener('DOMContentLoaded', function() {
-    bindNewChatModalEvents();
-});
+// Os listeners do modal Nova Conversa sÃ£o registrados no initChatModule
+
 
