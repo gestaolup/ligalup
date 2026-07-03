@@ -24,6 +24,7 @@ let chatState = {
   selectedConversationId: null,
   conversations: [],
   filteredConversations: [],
+  replyToMessage: null
 };
 
 let newChatState = { 
@@ -62,19 +63,43 @@ function buildChatFromDB() {
         ...newGroups.map(g => ({ id: g.id, name: g.nome, type: 'Grupo', dbType: 'new' }))
     ];
 
+    DB.chat_message_reads = DB.chat_message_reads || [];
+
     return unifiedList.map(item => {
-        const msgs = (DB.chat_messages || []).filter(m => m.conversation_id === item.id || m.grupo_id === item.id)
-            .sort((a, b) => new Date(a.sent_at) - new Date(b.sent_at))
-            .map(m => {
+        const allMsgsInConv = (DB.chat_messages || []).filter(m => m.conversation_id === item.id || m.grupo_id === item.id)
+            .sort((a, b) => new Date(a.sent_at) - new Date(b.sent_at));
+            
+        const msgs = allMsgsInConv.map(m => {
                 const isMe = window.currentUser && m.sender_id === window.currentUser.id;
                 const senderUser = DB.usuarios.find(u => u.id === m.sender_id);
+                
+                let replyData = null;
+                if (m.reply_to_id) {
+                    const originalMsg = allMsgsInConv.find(x => x.id === m.reply_to_id);
+                    if (originalMsg) {
+                        const origIsMe = window.currentUser && originalMsg.sender_id === window.currentUser.id;
+                        const origUser = DB.usuarios.find(u => u.id === originalMsg.sender_id);
+                        replyData = {
+                            senderName: origIsMe ? 'Eu' : (origUser ? origUser.nome : 'UsuÃ¡rio'),
+                            text: originalMsg.body
+                        };
+                    }
+                }
+                
+                let isRead = false;
+                if (isMe) {
+                    isRead = DB.chat_message_reads.some(r => r.message_id === m.id);
+                }
+
                 return {
                     id: m.id,
                     senderId: isMe ? 'me' : m.sender_id,
                     senderName: isMe ? 'Eu' : (senderUser ? senderUser.nome : 'UsuÃ¡rio'),
                     text: m.body,
                     time: new Date(m.sent_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-                    rawTimestamp: new Date(m.sent_at).getTime()
+                    rawTimestamp: new Date(m.sent_at).getTime(),
+                    replyData,
+                    isRead
                 };
             });
         const lastMsg = msgs[msgs.length - 1];
@@ -184,6 +209,19 @@ function initChatModule() {
             chatState.conversations = buildChatFromDB();
             chatState.filteredConversations = [...chatState.conversations];
             renderConversationList(chatState.filteredConversations);
+        }
+    })
+    // â”€â”€ Leituras (recebimento passivo) â”€â”€
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_message_reads' }, payload => {
+        const DB = window.DB;
+        DB.chat_message_reads = DB.chat_message_reads || [];
+        if (!DB.chat_message_reads.find(r => r.message_id === payload.new.message_id && r.user_id === payload.new.user_id)) {
+            DB.chat_message_reads.push(payload.new);
+            chatState.conversations = buildChatFromDB();
+            chatState.filteredConversations = [...chatState.conversations];
+            if (chatState.selectedConversationId) {
+                openConversation(chatState.selectedConversationId);
+            }
         }
     })
 
@@ -377,10 +415,37 @@ console.log('[CHAT] Displays apÃ³s alteraÃ§Ã£o:', {
     emptyDiv.innerHTML = '<i class="fas fa-comment-dots"></i><p>Nenhuma mensagem ainda. Inicie a conversa!</p>';
     messagesBodyEl.appendChild(emptyDiv);
   } else {
+    // Enviar ConfirmaÃ§Ã£o de Leitura (Read Receipts)
+    if (window.currentUser && window.supabaseClient) {
+        const DB = window.DB;
+        DB.chat_message_reads = DB.chat_message_reads || [];
+        const myId = window.currentUser.id;
+        const unreadMsgs = messages.filter(m => m.senderId !== 'me' && !DB.chat_message_reads.some(r => r.message_id === m.id && r.user_id === myId));
+        if (unreadMsgs.length > 0) {
+            const readsToInsert = unreadMsgs.map(m => ({ message_id: m.id, user_id: myId }));
+            window.supabaseClient.from('chat_message_reads').insert(readsToInsert).then(() => {
+               readsToInsert.forEach(r => {
+                   if (!DB.chat_message_reads.find(existing => existing.message_id === r.message_id && existing.user_id === r.user_id)) {
+                       DB.chat_message_reads.push(r);
+                   }
+               });
+            }).catch(err => console.error('[Chat] Erro ao registrar leitura:', err));
+        }
+    }
+
     const isGroup = conv.role === 'Grupo';
     messages.forEach(msg => {
       const wrapper = document.createElement('div');
       wrapper.className = `chat-msg ${msg.senderId === 'me' ? 'msg-sent' : 'msg-received'}`;
+      
+      // Reply action listener
+      wrapper.addEventListener('dblclick', () => {
+          chatState.replyToMessage = { id: msg.id, senderName: msg.senderName, text: msg.text };
+          document.getElementById('chat-reply-preview').style.display = 'block';
+          document.getElementById('reply-preview-sender').textContent = msg.senderName;
+          document.getElementById('reply-preview-text').textContent = msg.text;
+          document.getElementById('chat-input-field').focus();
+      });
 
       if (isGroup && msg.senderId !== 'me') {
           const senderLabel = document.createElement('div');
@@ -396,12 +461,50 @@ console.log('[CHAT] Displays apÃ³s alteraÃ§Ã£o:', {
       const bubble = document.createElement('div');
       bubble.className = 'msg-bubble';
       
+      if (msg.replyData) {
+          const replyBlock = document.createElement('div');
+          replyBlock.style.background = 'rgba(0,0,0,0.1)';
+          replyBlock.style.borderLeft = '3px solid var(--accent)';
+          replyBlock.style.padding = '4px 8px';
+          replyBlock.style.marginBottom = '6px';
+          replyBlock.style.borderRadius = '4px';
+          replyBlock.style.fontSize = '11px';
+          replyBlock.style.opacity = '0.8';
+          
+          const replySender = document.createElement('div');
+          replySender.style.fontWeight = 'bold';
+          replySender.style.color = 'var(--accent)';
+          replySender.style.marginBottom = '2px';
+          replySender.textContent = msg.replyData.senderName;
+          
+          const replyText = document.createElement('div');
+          replyText.style.whiteSpace = 'nowrap';
+          replyText.style.overflow = 'hidden';
+          replyText.style.textOverflow = 'ellipsis';
+          replyText.textContent = msg.replyData.text;
+          
+          replyBlock.appendChild(replySender);
+          replyBlock.appendChild(replyText);
+          bubble.appendChild(replyBlock);
+      }
+      
       const textNode = document.createTextNode(msg.text ?? '');
       bubble.appendChild(textNode);
 
       const time = document.createElement('span');
       time.className = 'msg-time';
-      time.textContent = msg.time ?? '';
+      
+      if (msg.senderId === 'me') {
+          const checkIcon = document.createElement('i');
+          checkIcon.className = 'fas fa-check-double';
+          checkIcon.style.marginLeft = '4px';
+          checkIcon.style.fontSize = '10px';
+          checkIcon.style.color = msg.isRead ? '#3498db' : 'var(--text-muted)';
+          time.textContent = msg.time ?? '';
+          time.appendChild(checkIcon);
+      } else {
+          time.textContent = msg.time ?? '';
+      }
 
       wrapper.appendChild(bubble);
       wrapper.appendChild(time);
@@ -438,6 +541,10 @@ async function sendMessage() {
     body: text,
     sent_at: new Date().toISOString()
   };
+  
+  if (chatState.replyToMessage) {
+      newMsg.reply_to_id = chatState.replyToMessage.id;
+  }
   
   if (isNewGroup) {
       newMsg.grupo_id = chatState.selectedConversationId;
@@ -505,6 +612,18 @@ function bindChatEvents() {
               e.preventDefault();
               sendMessage();
           }
+      });
+  }
+
+  // BotÃ£o cancelar resposta
+  const cancelReplyBtn = document.getElementById('btn-cancel-reply');
+  if (cancelReplyBtn) {
+      const newCancel = cancelReplyBtn.cloneNode(true);
+      cancelReplyBtn.parentNode.replaceChild(newCancel, cancelReplyBtn);
+      newCancel.addEventListener('click', () => {
+          chatState.replyToMessage = null;
+          const replyPrev = document.getElementById('chat-reply-preview');
+          if (replyPrev) replyPrev.style.display = 'none';
       });
   }
 

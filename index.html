@@ -1598,6 +1598,12 @@
                   <div id="chat-active-area" class="chat-active-area" style="display:none; flex-direction:column; height:100%;">
                     <div class="chat-header-bar" id="chat-header-bar"></div>
                     <div class="chat-messages-body" id="chat-messages-body"></div>
+                    <!-- Reply Preview Area -->
+                    <div id="chat-reply-preview" style="display:none; padding: 8px 16px; background: rgba(0,0,0,0.2); border-left: 3px solid var(--accent); border-top: 1px solid var(--border-glass); font-size: 12px; position: relative; color: var(--text-secondary);">
+                        <div style="font-weight: bold; color: var(--accent); margin-bottom: 2px;" id="reply-preview-sender"></div>
+                        <div id="reply-preview-text" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+                        <button id="btn-cancel-reply" style="position: absolute; right: 10px; top: 10px; background: none; border: none; color: var(--text-muted); cursor: pointer;"><i class="fas fa-times"></i></button>
+                    </div>
                     <div class="chat-input-bar">
                       <input type="text" id="chat-input-field" class="chat-input-field" placeholder="Digite uma mensagem..." autocomplete="off">
                       <button class="chat-send-btn" id="btn-send-message">
