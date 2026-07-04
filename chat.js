@@ -496,7 +496,7 @@ console.log('[CHAT] Displays apÃ³s alteraÃ§Ã£o:', {
       
       if (msg.senderId === 'me') {
           const checkIcon = document.createElement('i');
-          checkIcon.className = 'fas fa-check-double';
+          checkIcon.className = msg.isRead ? 'fas fa-check-double' : 'fas fa-check';
           checkIcon.style.marginLeft = '4px';
           checkIcon.style.fontSize = '10px';
           checkIcon.style.color = msg.isRead ? '#3498db' : 'var(--text-muted)';
@@ -907,13 +907,16 @@ function bindNewChatModalEvents() {
                   criador_id: window.currentUser.id,
                   created_at: new Date().toISOString()
               };
-              await window.supabaseClient.from('chat_grupos').insert(newGroup);
+              const { error: groupError } = await window.supabaseClient.from('chat_grupos').insert(newGroup);
+              if (groupError) throw groupError;
               
               var members = newChatState.selectedUserIds.map(function(uId) {
                   return { grupo_id: newGroup.id, user_id: uId, papel: 'Membro' };
               });
               members.push({ grupo_id: newGroup.id, user_id: window.currentUser.id, papel: 'Admin' });
-              await window.supabaseClient.from('chat_membros_grupo').insert(members);
+              
+              const { error: membersError } = await window.supabaseClient.from('chat_membros_grupo').insert(members);
+              if (membersError) throw membersError;
               
               await window.syncDBFromSupabase();
               chatState.conversations = buildChatFromDB();
