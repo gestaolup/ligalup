@@ -2167,11 +2167,20 @@ option:hover {
   align-items: flex-end;
 }
 
+/* 1. Nome do autor da mensagem */
 .chat-msg-author {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  padding: 0 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-secondary); /* Antes era escuro, agora vamos clarear */
+    color: #d1d5db; /* Cinza claro bem visível */
+    padding: 0 4px;
+}
+
+/* 2. Ícone de Iniciais (Chat Header) */
+.chat-conv-header-avatar {
+    background: var(--primary) !important; /* Laranja vivo definido no seu :root */
+    color: #ffffff !important;
+    border: none !important;
 }
 
 .chat-msg-bubble {
@@ -3989,12 +3998,19 @@ option:hover {
   background: rgba(255,255,255,0.06);
 }
 
-/* --- Ajuste no item selecionado do Modal de Chat --- */
+/* Tag de selecionado vibrante */
 .new-chat-user-item.selected {
-    /* Usando a variável --primary que você definiu lá no :root */
-    background: rgba(234, 88, 12, 0.15) !important; 
-    border-color: var(--primary) !important;
-    box-shadow: 0 0 8px var(--primary-glow) !important;
+    background: rgba(234, 88, 12, 0.2) !important; /* Fundo laranja suave */
+    border: 1px solid var(--primary) !important;
+}
+
+/* O texto "Selecionado" (badge) */
+.selected-badge {
+    background: var(--primary) !important; /* Laranja vibrante */
+    color: #ffffff !important; /* Fonte branca para contraste */
+    font-weight: bold;
+    padding: 2px 8px;
+    border-radius: 4px;
 }
 
 /* --- Ajuste específico para garantir o Laranja no botão de ação --- */
