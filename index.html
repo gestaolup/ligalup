@@ -96,6 +96,9 @@
                     <li class="nav-item" data-target="mod-acessos" data-requires-master="true">
                         <i class="fas fa-users-cog"></i> Gestão de Acessos
                     </li>
+                    <li class="nav-item" data-target="mod-master-config" data-requires-master="true">
+                        <i class="fas fa-cogs"></i> Configurações Globais
+                    </li>
                     <li class="nav-item" data-target="mod-eventos">
                         <i class="fas fa-calendar-day"></i> Diretoria de Eventos
                     </li>
@@ -1615,6 +1618,53 @@
 
               </div>
             </section>
+            <!-- ========================================== -->
+            <!-- CONFIGURAÇÕES GLOBAIS (MASTER)            -->
+            <!-- ========================================== -->
+            <section id="mod-master-config" class="module-section">
+                <div class="module-header">
+                    <h2><i class="fas fa-cogs"></i> Configurações do Sistema</h2>
+                    <p>Configurações exclusivas do núcleo (Master) da Atlética.</p>
+                </div>
+                <div class="glass-card">
+                    <form id="form-master-config">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Nome da Instituição</label>
+                                <input type="text" class="form-control" id="config-nome-instituicao" required placeholder="Ex: Atlética LUP">
+                            </div>
+                            <div class="form-group">
+                                <label>Cor Primária (Hexadecimal)</label>
+                                <div style="display:flex; gap:8px;">
+                                    <input type="color" id="config-cor-primaria-picker" style="height:42px; width:50px; padding:2px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; cursor:pointer;">
+                                    <input type="text" class="form-control" id="config-cor-primaria" required placeholder="#18181b" style="flex:1;">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-grid" style="margin-top:16px;">
+                            <div class="form-group">
+                                <label>Prazo de Alerta (Dias p/ Contratos)</label>
+                                <input type="number" class="form-control" id="config-prazo-alerta" required min="1" placeholder="30">
+                            </div>
+                            <div class="form-group">
+                                <label>Remetente de E-mail (Sistema)</label>
+                                <input type="email" class="form-control" id="config-remetente-email" required placeholder="notificacoes@atleticalup.com.br">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top:16px;">
+                            <label>URL do Logo</label>
+                            <input type="url" class="form-control" id="config-logo-url" placeholder="https://exemplo.com/logo.png">
+                        </div>
+                        <div style="display:flex; align-items:center; gap:16px; margin-top:24px;">
+                            <button type="submit" class="btn btn-accent" id="btn-save-config">
+                                <i class="fas fa-save"></i> Salvar Configurações
+                            </button>
+                            <span id="config-save-message" style="display:none; font-size:14px; font-weight:bold;"></span>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
         </main>
 
     </div>
@@ -1754,6 +1804,7 @@
     <!-- Módulo de Chat e Comunicação (deve ser carregado antes do app.js) -->
     <script src="chat.js"></script>
     <!-- Módulo de Autenticação (deve ser carregado antes do app.js) -->
+    <script src="config.js"></script>
     <script src="auth.js"></script>
     <!-- Módulo Financeiro (deve ser carregado antes do app.js) -->
     <script src="finance.js"></script>

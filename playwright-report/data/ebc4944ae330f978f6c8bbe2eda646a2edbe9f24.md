@@ -22,7 +22,7 @@ Timeout:  5000ms
 Call log:
   - Expect "toBeVisible" with timeout 5000ms
   - waiting for locator('#app-wrapper')
-    9 × locator resolved to <div id="app-wrapper" class="app-wrapper">…</div>
+    7 × locator resolved to <div id="app-wrapper" class="app-wrapper">…</div>
       - unexpected value "hidden"
 
 ```

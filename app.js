@@ -824,6 +824,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             console.log('Sincronização concluída! chat_conversations:', DB.chat_conversations.length);
+
+            // Carrega e aplica as configurações globais master
+            if (window.ConfigModule) {
+                window.ConfigModule.loadConfig().catch(e => console.warn(e));
+            }
         } catch (err) {
             console.error('[Sync] Erro inesperado durante a sincronização:', err);
         }
@@ -902,6 +907,11 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshAllUI,
         formatCurrency: (val) => `R$ ${parseFloat(val).toFixed(2)}`
     });
+
+    // --- Inicializa o módulo de configurações (config.js) ---
+    if (window.ConfigModule) {
+        window.ConfigModule.init();
+    }
 
     // --- Inicializa o módulo de controle de acesso e usuários (user_access.js) ---
     window.initUserAccess({
