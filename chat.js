@@ -30,7 +30,8 @@ let chatState = {
 let newChatState = { 
   selectedUserId: null,
   isGroupMode: false,
-  selectedUserIds: []
+  selectedUserIds: [],
+  isSubmitting: false
 };
 
 // â”€â”€ 2. BUILDER DE DADOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -285,6 +286,23 @@ function renderConversationList(conversations) {
     listEl.style.display  = 'none';
     if (emptyEl) emptyEl.style.display = 'flex';
     return;
+  }
+
+  // Idempotency: Limpeza local (deduplicação) de conversas antes de renderizar
+  const uniqueConversations = [];
+  const seenIds = new Set();
+  for (let i = 0; i < conversations.length; i++) {
+    const conv = conversations[i];
+    if (!seenIds.has(conv.id)) {
+      seenIds.add(conv.id);
+      uniqueConversations.push(conv);
+    }
+  }
+  
+  if (uniqueConversations.length !== conversations.length) {
+    chatState.conversations = uniqueConversations;
+    chatState.filteredConversations = [...uniqueConversations];
+    conversations = uniqueConversations;
   }
 
   if (emptyEl) emptyEl.style.display = 'none';
@@ -917,11 +935,14 @@ function bindNewChatModalEvents() {
   var btnStart = document.getElementById('btn-start-conversation');
   if (btnStart) {
     btnStart.addEventListener('click', async function() {
+      if (newChatState.isSubmitting) return;
+
       if (newChatState.isGroupMode) {
           var groupName = document.getElementById('new-group-name')?.value?.trim();
           if (!groupName) return alert('Digite o nome do grupo.');
           if (newChatState.selectedUserIds.length === 0) return;
           
+          newChatState.isSubmitting = true;
           btnStart.disabled = true;
           btnStart.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Criando...';
           
@@ -932,28 +953,37 @@ function bindNewChatModalEvents() {
                   criador_id: window.currentUser.id,
                   created_at: new Date().toISOString()
               };
-              const { error: groupError } = await window.supabaseClient.from('chat_grupos').insert(newGroup);
+              
+              // Garante que usamos o ID retornado pelo Supabase
+              const { data: insertedGroup, error: groupError } = await window.supabaseClient.from('chat_grupos').insert(newGroup).select().single();
               if (groupError) throw groupError;
               
+              const finalGroupId = insertedGroup ? insertedGroup.id : newGroup.id;
+              
               var members = newChatState.selectedUserIds.map(function(uId) {
-                  return { grupo_id: newGroup.id, user_id: uId, papel: 'Membro' };
+                  return { grupo_id: finalGroupId, user_id: uId, papel: 'Membro' };
               });
-              members.push({ grupo_id: newGroup.id, user_id: window.currentUser.id, papel: 'Admin' });
+              members.push({ grupo_id: finalGroupId, user_id: window.currentUser.id, papel: 'Admin' });
               
               const { error: membersError } = await window.supabaseClient.from('chat_membros_grupo').insert(members);
               if (membersError) throw membersError;
               
               await window.syncDBFromSupabase();
               await syncChatDB();
+              
+              // Evita estado de conversas fantasmas duplicadas recarregando do array limpo
+              window.DB.chat_conversations = window.DB.chat_conversations || [];
               chatState.conversations = buildChatFromDB();
               chatState.filteredConversations = [...chatState.conversations];
               
               closeNewChatModal();
               renderConversationList(chatState.filteredConversations);
-              openConversation(newGroup.id);
+              openConversation(finalGroupId);
           } catch (err) {
               console.error('[Chat] Erro ao criar grupo:', err);
+              alert('Erro ao criar o grupo. Tente novamente.');
           } finally {
+              newChatState.isSubmitting = false;
               btnStart.disabled = false;
               btnStart.innerHTML = '<i class="fas fa-users"></i> Criar Grupo';
           }
