@@ -796,7 +796,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'produtos', 'produto_variantes', 'calendario_editorial', 'cronograma_postagens',
             'escalacoes', 'participantes_evento', 'lancamentos_financeiros',
             'parceiros_patrocinadores', 'documentos_contratos', 'logs_notificacoes',
-            'fornecedores', 'pedidos_compra', 'chat_conversations', 'chat_participants', 'chat_messages'
+            'fornecedores', 'pedidos_compra', 'chat_conversations', 'chat_participants', 'chat_messages', 'diretorias'
         ];
 
         try {

@@ -26,10 +26,12 @@ window.ConfigModule = (function() {
                 globalConfig = { ...globalConfig, ...data };
             }
             applyConfig();
+            renderDiretorias();
         } catch (error) {
             console.warn('[ConfigModule] Erro ao carregar configurações globais:', error);
             // Mesmo com erro, aplica os fallbacks para garantir renderização correta
             applyConfig();
+            renderDiretorias();
         }
     }
 
@@ -140,10 +142,111 @@ window.ConfigModule = (function() {
                 }
             });
         }
+
+        const btnNova = document.getElementById('btn-nova-diretoria');
+        const formNovaContainer = document.getElementById('form-nova-diretoria-container');
+        const formNova = document.getElementById('form-nova-diretoria');
+
+        if (btnNova && formNovaContainer) {
+            btnNova.addEventListener('click', () => {
+                formNovaContainer.style.display = formNovaContainer.style.display === 'none' ? 'block' : 'none';
+            });
+        }
+        if (formNova) {
+            formNova.addEventListener('submit', handleAddDiretoria);
+        }
+    }
+
+    function renderDiretorias() {
+        const tbody = document.getElementById('lista-diretorias-master');
+        if (!tbody) return;
+
+        const diretorias = (window.DB && window.DB.diretorias) ? window.DB.diretorias : [];
+        
+        if (diretorias.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding: 24px;">Nenhuma diretoria cadastrada</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = diretorias.map(d => `
+            <tr>
+                <td>${d.nome}</td>
+                <td>
+                    <span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; background: ${d.ativa ? 'rgba(46, 213, 115, 0.1)' : 'rgba(255, 71, 87, 0.1)'}; color: ${d.ativa ? '#2ed573' : '#ff4757'}">
+                        ${d.ativa ? 'Ativa' : 'Inativa'}
+                    </span>
+                </td>
+                <td style="text-align:right;">
+                    <button class="btn btn-sm btn-secondary" onclick="window.ConfigModule.toggleDiretoria('${d.id}', ${!d.ativa})">
+                        <i class="fas fa-${d.ativa ? 'ban' : 'check'}"></i> ${d.ativa ? 'Desativar' : 'Ativar'}
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    async function toggleDiretoria(id, newStatus) {
+        if (!confirm(`Deseja realmente ${newStatus ? 'ativar' : 'desativar'} esta diretoria?`)) return;
+        
+        try {
+            const { error } = await window.supabaseClient
+                .from('diretorias')
+                .update({ ativa: newStatus })
+                .eq('id', id);
+            
+            if (error) throw error;
+            
+            await window.syncDBFromSupabase();
+            renderDiretorias();
+        } catch (error) {
+            console.error('Erro ao alternar status da diretoria:', error);
+            alert('Erro ao alterar o status. Apenas usuários Master têm permissão.');
+        }
+    }
+
+    async function handleAddDiretoria(e) {
+        e.preventDefault();
+        const nomeInput = document.getElementById('nova-diretoria-nome');
+        const nome = nomeInput.value.trim();
+        if (!nome) return;
+
+        const btn = document.getElementById('btn-save-diretoria');
+        const origText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ...';
+        btn.disabled = true;
+
+        try {
+            const newDir = {
+                id: crypto.randomUUID(),
+                nome: nome,
+                ativa: true,
+                created_at: new Date().toISOString()
+            };
+
+            const { error } = await window.supabaseClient
+                .from('diretorias')
+                .insert([newDir]);
+            
+            if (error) throw error;
+            
+            nomeInput.value = '';
+            document.getElementById('form-nova-diretoria-container').style.display = 'none';
+            
+            await window.syncDBFromSupabase();
+            renderDiretorias();
+        } catch (error) {
+            console.error('Erro ao criar diretoria:', error);
+            alert('Erro ao criar diretoria. Verifique suas permissões (Master).');
+        } finally {
+            btn.innerHTML = origText;
+            btn.disabled = false;
+        }
     }
 
     return {
         init,
-        loadConfig
+        loadConfig,
+        renderDiretorias,
+        toggleDiretoria
     };
 })();

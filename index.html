@@ -1663,6 +1663,48 @@
                         </div>
                     </form>
                 </div>
+
+                <!-- Estrutura Organizacional -->
+                <div class="glass-card" style="margin-top:24px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                        <h3 style="font-family: var(--font-heading); margin:0;"><i class="fas fa-sitemap"></i> Estrutura Organizacional (Diretorias)</h3>
+                        <button class="btn btn-primary btn-sm" id="btn-nova-diretoria">
+                            <i class="fas fa-plus"></i> Nova Diretoria
+                        </button>
+                    </div>
+
+                    <!-- Formulário Inline Nova Diretoria (Oculto por Padrão) -->
+                    <div id="form-nova-diretoria-container" style="display:none; background:rgba(255,255,255,0.02); padding:16px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); margin-bottom:16px;">
+                        <form id="form-nova-diretoria">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Nome da Diretoria</label>
+                                    <input type="text" class="form-control" id="nova-diretoria-nome" required placeholder="Ex: Diretoria de Esportes">
+                                </div>
+                                <div class="form-group" style="display:flex; align-items:flex-end;">
+                                    <button type="submit" class="btn btn-accent" id="btn-save-diretoria" style="width:100%;">
+                                        <i class="fas fa-check"></i> Adicionar
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Nome da Diretoria</th>
+                                    <th>Status</th>
+                                    <th style="text-align:right;">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="lista-diretorias-master">
+                                <!-- Preenchido via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </section>
 
         </main>
