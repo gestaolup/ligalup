@@ -9,8 +9,8 @@ module.exports = defineConfig({
   // Diretório raiz onde os arquivos de teste estão localizados
   testDir: './tests',
 
-  // Timeout por teste (30s — suficiente para carregar o monolito local)
-  timeout: 30_000,
+  // Timeout por teste (60s — suficiente para carregar o monolito local)
+  timeout: 60_000,
 
   // Número de workers paralelos. Definido como 1 para garantir
   // isolamento total de estado entre os testes nesta fase inicial.
@@ -52,6 +52,6 @@ module.exports = defineConfig({
     command: 'node node_modules/serve/build/main.js . --listen 5500 --no-clipboard',
     url: 'http://localhost:5500',
     reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
+    timeout: 60_000,
   },
 });

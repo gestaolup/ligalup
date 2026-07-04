@@ -119,7 +119,32 @@ function buildChatFromDB() {
 }
 
 // â”€â”€ 3. INICIALIZAÃ‡ÃƒO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+async function syncChatDB() {
+    if (!window.supabaseClient) return;
+    try {
+        const [gRes, mRes, rRes] = await Promise.all([
+            window.supabaseClient.from('chat_grupos').select('*'),
+            window.supabaseClient.from('chat_membros_grupo').select('*'),
+            window.supabaseClient.from('chat_message_reads').select('*')
+        ]);
+        window.DB.chat_grupos = gRes.data || [];
+        window.DB.chat_membros_grupo = mRes.data || [];
+        window.DB.chat_message_reads = rRes.data || [];
+    } catch (err) {
+        console.warn('[Chat] Erro sync local:', err);
+    }
+}
+
 function initChatModule() {
+  syncChatDB().then(() => {
+      chatState.conversations = buildChatFromDB();
+      chatState.filteredConversations = [...chatState.conversations];
+      renderConversationList(chatState.filteredConversations);
+      if (chatState.selectedConversationId) {
+          openConversation(chatState.selectedConversationId);
+      }
+  });
+
   chatState.conversations = buildChatFromDB();
   chatState.filteredConversations = [...chatState.conversations];
 
@@ -919,6 +944,7 @@ function bindNewChatModalEvents() {
               if (membersError) throw membersError;
               
               await window.syncDBFromSupabase();
+              await syncChatDB();
               chatState.conversations = buildChatFromDB();
               chatState.filteredConversations = [...chatState.conversations];
               
