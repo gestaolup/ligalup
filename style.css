@@ -3989,9 +3989,17 @@ option:hover {
   background: rgba(255,255,255,0.06);
 }
 
+/* --- Ajuste no item selecionado do Modal de Chat --- */
 .new-chat-user-item.selected {
-  background: rgba(var(--primary-rgb, 99,102,241), 0.18);
-  border-color: var(--primary);
+    /* Usando a variável --primary que você definiu lá no :root */
+    background: rgba(234, 88, 12, 0.15) !important; 
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 8px var(--primary-glow) !important;
+}
+
+/* --- Ajuste específico para garantir o Laranja no botão de ação --- */
+.btn-primary {
+    background: var(--primary) !important;
 }
 
 /* Avatar com iniciais */
