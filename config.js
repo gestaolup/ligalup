@@ -27,11 +27,13 @@ window.ConfigModule = (function() {
             }
             applyConfig();
             renderDiretorias();
+            loadPermissoes();
         } catch (error) {
             console.warn('[ConfigModule] Erro ao carregar configurações globais:', error);
             // Mesmo com erro, aplica os fallbacks para garantir renderização correta
             applyConfig();
             renderDiretorias();
+            loadPermissoes();
         }
     }
 
@@ -155,6 +157,39 @@ window.ConfigModule = (function() {
         if (formNova) {
             formNova.addEventListener('submit', handleAddDiretoria);
         }
+
+        const tabDiretorias = document.getElementById('tab-diretorias');
+        const tabPermissoes = document.getElementById('tab-permissoes');
+        const contentDiretorias = document.getElementById('content-diretorias');
+        const contentPermissoes = document.getElementById('content-permissoes');
+
+        if (tabDiretorias && tabPermissoes) {
+            tabDiretorias.addEventListener('click', () => {
+                tabDiretorias.classList.add('active');
+                tabDiretorias.style.color = 'var(--primary)';
+                tabDiretorias.style.borderBottom = '2px solid var(--primary)';
+                
+                tabPermissoes.classList.remove('active');
+                tabPermissoes.style.color = 'var(--text-secondary)';
+                tabPermissoes.style.borderBottom = 'none';
+
+                contentDiretorias.style.display = 'block';
+                contentPermissoes.style.display = 'none';
+            });
+
+            tabPermissoes.addEventListener('click', () => {
+                tabPermissoes.classList.add('active');
+                tabPermissoes.style.color = 'var(--primary)';
+                tabPermissoes.style.borderBottom = '2px solid var(--primary)';
+                
+                tabDiretorias.classList.remove('active');
+                tabDiretorias.style.color = 'var(--text-secondary)';
+                tabDiretorias.style.borderBottom = 'none';
+
+                contentDiretorias.style.display = 'none';
+                contentPermissoes.style.display = 'block';
+            });
+        }
     }
 
     function renderDiretorias() {
@@ -243,10 +278,96 @@ window.ConfigModule = (function() {
         }
     }
 
+    // --- Permissões Matrix ---
+    const ACOES_SISTEMA = [
+        { id: 'aprovar_evento', label: 'Aprovar Eventos' },
+        { id: 'criar_usuario', label: 'Criar Usuários' },
+        { id: 'excluir_usuario', label: 'Excluir Usuários' },
+        { id: 'editar_financas', label: 'Editar Finanças' },
+        { id: 'editar_documentos', label: 'Editar Documentos Jurídicos' },
+        { id: 'gerenciar_estoque', label: 'Gerenciar Estoque' }
+    ];
+
+    const CARGOS = ['Master', 'Presidente', 'Vice-Presidente', 'Diretor', 'Membro'];
+
+    let localPermissoes = [];
+
+    async function loadPermissoes() {
+        if (!window.supabaseClient) return;
+        try {
+            const { data, error } = await window.supabaseClient.from('permissoes').select('*');
+            if (error) throw error;
+            localPermissoes = data || [];
+        } catch (error) {
+            console.warn('[ConfigModule] Tabela permissoes pode não existir ainda ou erro de acesso:', error);
+            localPermissoes = [];
+        }
+        renderPermissoesMatrix();
+    }
+
+    function renderPermissoesMatrix() {
+        const tbody = document.getElementById('lista-permissoes-master');
+        if (!tbody) return;
+
+        tbody.innerHTML = ACOES_SISTEMA.map(acao => {
+            let rowHtml = `<tr><td><strong>${acao.label}</strong><br><small style="color:var(--text-secondary)">${acao.id}</small></td>`;
+            
+            CARGOS.forEach(cargo => {
+                const perm = localPermissoes.find(p => p.acao_sistema === acao.id && p.cargo_id === cargo);
+                const isConcedida = perm ? perm.concedida : (cargo === 'Master');
+                const isMaster = cargo === 'Master';
+                
+                rowHtml += `
+                <td style="text-align:center;">
+                    <input type="checkbox" 
+                           ${isConcedida ? 'checked' : ''} 
+                           ${isMaster ? 'disabled' : ''}
+                           onchange="window.ConfigModule.togglePermissao('${acao.id}', '${cargo}', this.checked)"
+                           style="accent-color: var(--primary); transform: scale(1.3); cursor: ${isMaster ? 'not-allowed' : 'pointer'};">
+                </td>`;
+            });
+            
+            rowHtml += `</tr>`;
+            return rowHtml;
+        }).join('');
+    }
+
+    async function togglePermissao(acao_id, cargo_id, isConcedida) {
+        try {
+            const perm = localPermissoes.find(p => p.acao_sistema === acao_id && p.cargo_id === cargo_id);
+            
+            if (perm) {
+                const { error } = await window.supabaseClient
+                    .from('permissoes')
+                    .update({ concedida: isConcedida })
+                    .eq('id', perm.id);
+                if (error) throw error;
+                perm.concedida = isConcedida;
+            } else {
+                const newPerm = {
+                    id: crypto.randomUUID(),
+                    acao_sistema: acao_id,
+                    cargo_id: cargo_id,
+                    concedida: isConcedida
+                };
+                const { error } = await window.supabaseClient
+                    .from('permissoes')
+                    .insert([newPerm]);
+                if (error) throw error;
+                localPermissoes.push(newPerm);
+            }
+        } catch (error) {
+            console.error('[ConfigModule] Erro ao alternar permissão:', error);
+            alert('Erro ao alterar permissão. Verifique se a tabela foi criada no banco.');
+            renderPermissoesMatrix();
+        }
+    }
+
     return {
         init,
         loadConfig,
         renderDiretorias,
-        toggleDiretoria
+        toggleDiretoria,
+        togglePermissao
     };
 })();

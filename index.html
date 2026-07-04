@@ -1666,43 +1666,77 @@
 
                 <!-- Estrutura Organizacional -->
                 <div class="glass-card" style="margin-top:24px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-                        <h3 style="font-family: var(--font-heading); margin:0;"><i class="fas fa-sitemap"></i> Estrutura Organizacional (Diretorias)</h3>
-                        <button class="btn btn-primary btn-sm" id="btn-nova-diretoria">
-                            <i class="fas fa-plus"></i> Nova Diretoria
-                        </button>
+                    <h3 style="font-family: var(--font-heading); margin:0 0 16px 0;"><i class="fas fa-sitemap"></i> Estrutura Organizacional</h3>
+                    
+                    <div class="tabs-container" style="margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; gap: 16px;">
+                        <button class="tab-btn active" id="tab-diretorias" style="background:none; border:none; color:var(--primary); font-weight:bold; padding-bottom:8px; border-bottom:2px solid var(--primary); cursor:pointer;">Diretorias</button>
+                        <button class="tab-btn" id="tab-permissoes" style="background:none; border:none; color:var(--text-secondary); padding-bottom:8px; cursor:pointer;">Matriz de Permissões</button>
                     </div>
 
-                    <!-- Formulário Inline Nova Diretoria (Oculto por Padrão) -->
-                    <div id="form-nova-diretoria-container" style="display:none; background:rgba(255,255,255,0.02); padding:16px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); margin-bottom:16px;">
-                        <form id="form-nova-diretoria">
-                            <div class="form-grid">
-                                <div class="form-group">
-                                    <label>Nome da Diretoria</label>
-                                    <input type="text" class="form-control" id="nova-diretoria-nome" required placeholder="Ex: Diretoria de Esportes">
+                    <!-- Conteúdo: Diretorias -->
+                    <div id="content-diretorias">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                            <span style="color:var(--text-secondary); font-size:14px;">Catálogo de Diretorias do Sistema</span>
+                            <button class="btn btn-primary btn-sm" id="btn-nova-diretoria">
+                                <i class="fas fa-plus"></i> Nova Diretoria
+                            </button>
+                        </div>
+
+                        <!-- Formulário Inline Nova Diretoria (Oculto por Padrão) -->
+                        <div id="form-nova-diretoria-container" style="display:none; background:rgba(255,255,255,0.02); padding:16px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); margin-bottom:16px;">
+                            <form id="form-nova-diretoria">
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label>Nome da Diretoria</label>
+                                        <input type="text" class="form-control" id="nova-diretoria-nome" required placeholder="Ex: Diretoria de Esportes">
+                                    </div>
+                                    <div class="form-group" style="display:flex; align-items:flex-end;">
+                                        <button type="submit" class="btn btn-accent" id="btn-save-diretoria" style="width:100%;">
+                                            <i class="fas fa-check"></i> Adicionar
+                                        </button>
+                                    </div>
                                 </div>
-                                <div class="form-group" style="display:flex; align-items:flex-end;">
-                                    <button type="submit" class="btn btn-accent" id="btn-save-diretoria" style="width:100%;">
-                                        <i class="fas fa-check"></i> Adicionar
-                                    </button>
-                                </div>
-                            </div>
-                        </form>
+                            </form>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome da Diretoria</th>
+                                        <th>Status</th>
+                                        <th style="text-align:right;">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lista-diretorias-master">
+                                    <!-- Preenchido via JS -->
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
-                    <div class="table-responsive">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Nome da Diretoria</th>
-                                    <th>Status</th>
-                                    <th style="text-align:right;">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody id="lista-diretorias-master">
-                                <!-- Preenchido via JS -->
-                            </tbody>
-                        </table>
+                    <!-- Conteúdo: Matriz de Permissões -->
+                    <div id="content-permissoes" style="display:none;">
+                        <p style="color:var(--text-secondary); font-size:14px; margin-bottom:16px;">
+                            Controle quais cargos têm permissão para executar ações críticas no sistema.
+                        </p>
+                        <div class="table-responsive">
+                            <table class="data-table" id="table-permissoes">
+                                <thead>
+                                    <tr>
+                                        <th>Ação de Sistema</th>
+                                        <th style="text-align:center;">Master</th>
+                                        <th style="text-align:center;">Presidente</th>
+                                        <th style="text-align:center;">Vice-Presidente</th>
+                                        <th style="text-align:center;">Diretor</th>
+                                        <th style="text-align:center;">Membro</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lista-permissoes-master">
+                                    <!-- Preenchido via JS -->
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </section>
