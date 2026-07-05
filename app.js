@@ -5,10 +5,10 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     // ========================================================================
-    // SUPABASE CONFIGURATION (AGUARDANDO CREDENCIAIS)
+    // SUPABASE CONFIGURATION
     // ========================================================================
-    const SUPABASE_URL = 'https://ruytftiztkrkvniqqmjj.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_70qktfjIX0DcfY2O-YM3Fw_fZbjUkEc';
+    const SUPABASE_URL = window.ENV.SUPABASE_URL;
+    const SUPABASE_KEY = window.ENV.SUPABASE_KEY;
     
     // Inicializa o cliente do Supabase
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -502,6 +502,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // INSERT de Usuário / UPDATE de Usuário
         saveUsuario: function(data) {
             const { id, nome, email, password, cargo, diretoria, status } = data;
+            
+            // Mapeamento transitório: busca o ID correspondente ao nome para salvar no banco
+            const dirObj = DB.diretorias.find(d => d.nome === diretoria);
+            const diretoria_id = dirObj ? dirObj.id : null;
 
             if (id) {
                 // ── EDITAR usuário existente ──────────────────────────────
@@ -516,7 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Sincroniza edição com Supabase
                 supabase.from('usuarios').update({
-                    nome, email, cargo, diretoria, status
+                    nome, email, cargo, diretoria, diretoria_id, status
                 }).eq('id', id).then(({ error }) => {
                     if (error) console.error('Erro ao atualizar usuário no Supabase:', error);
                 });
@@ -538,9 +542,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // 1. Insere no banco local imediatamente (com ID temporário)
                 const tempId = 'u_' + Date.now();
-                const localRecord = { id: tempId, nome, email, cargo, diretoria, status: true, senha: password, avatar: null };
+                const localRecord = { id: tempId, nome, email, cargo, diretoria, diretoria_id, status: true, senha: password, avatar: null };
                 DB.usuarios.push(localRecord);
-                logSQL(`INSERT INTO usuarios (nome, email, cargo, diretoria) VALUES ('${nome}', '${email}', '${cargo}', '${diretoria}');`, 'query');
+                logSQL(`INSERT INTO usuarios (nome, email, cargo, diretoria, diretoria_id) VALUES ('${nome}', '${email}', '${cargo}', '${diretoria}', '${diretoria_id}');`, 'query');
 
                 // Atualiza a UI imediatamente
                 refreshAllUI();
@@ -568,7 +572,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Grava na tabela usuarios com o UUID real
                     supabase.from('usuarios').upsert({
-                        id: realUID, nome, email, cargo, diretoria, status: true
+                        id: realUID, nome, email, cargo, diretoria, diretoria_id, status: true
                     }).then(({ error: dbError }) => {
                         if (dbError) console.error('Erro ao gravar usuário na tabela:', dbError);
                         else logSQL(`Usuário '${nome}' sincronizado no Supabase (UUID: ${realUID}).`, 'success');
@@ -812,6 +816,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data?.length > 0) DB[table] = data;
             }
 
+            // Mapeamento transicional: injeta o nome da diretoria baseado no UUID para a interface
+            if (DB.usuarios && DB.diretorias) {
+                DB.usuarios.forEach(u => {
+                    if (u.diretoria_id) {
+                        const dir = DB.diretorias.find(d => d.id === u.diretoria_id);
+                        u.diretoria = dir ? dir.nome : 'Sem diretoria';
+                    } else {
+                        u.diretoria = u.diretoria || 'Sem diretoria';
+                    }
+                });
+            }
+
             // Garante que a conversa padrão "Geral LUP" existe (seed automático)
             if (!DB.chat_conversations.find(c => c.id === 'conv-1')) {
                 const seedConv = { id: 'conv-1', name: 'Geral LUP', type: 'Grupo' };
@@ -992,10 +1008,11 @@ navItems.forEach(item => {
         
         const countEvents = DB.eventos.filter(e => e.status_aprovacao === 'Aguardando Tesouraria').length;
         
+        const prazo_alerta = window.ConfigModule ? window.ConfigModule.globalConfig.prazo_alerta_contratos : 30;
         const countContracts = DB.documentos_contratos.filter(dc => {
             if (!dc.data_vencimento) return false;
             const diffDays = Math.ceil((new Date(dc.data_vencimento) - new Date()) / (1000 * 60 * 60 * 24));
-            return diffDays >= 0 && diffDays <= 30; // Vencendo nos próximos 30 dias
+            return diffDays >= 0 && diffDays <= prazo_alerta;
         }).length;
         
         const countAtletasIrregulares = DB.atletas.filter(a => a.status_documentacao === 'Pendente' || a.status_documentacao === 'Rejeitado').length;
@@ -2509,15 +2526,16 @@ navItems.forEach(item => {
     // --- CRON SIMULADO: CONTRATO_VENCENDO (Dispara ao abrir o painel) ---
     // Simula o job diário que verifica contratos vencendo em 30 dias.
     function checkContratoVencendoNotifications() {
+        const prazo_alerta = window.ConfigModule ? window.ConfigModule.globalConfig.prazo_alerta_contratos : 30;
         const hoje = new Date();
-        const limite30Dias = new Date(hoje);
-        limite30Dias.setDate(hoje.getDate() + 30);
+        const limiteDias = new Date(hoje);
+        limiteDias.setDate(hoje.getDate() + prazo_alerta);
 
         DB.documentos_contratos.forEach(dc => {
             if (!dc.data_vencimento) return;
             const venc = new Date(dc.data_vencimento);
             const diffDays = Math.ceil((venc - hoje) / (1000 * 60 * 60 * 24));
-            if (diffDays >= 0 && diffDays <= 30) {
+            if (diffDays >= 0 && diffDays <= prazo_alerta) {
                 // Gera notificação apenas se ainda não existe uma para este contrato hoje
                 const jaNotificado = DB.logs_notificacoes.some(l =>
                     l.gatilho_regra === 'CONTRATO_VENCENDO' &&

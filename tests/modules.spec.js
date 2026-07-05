@@ -123,6 +123,8 @@ test.describe('Testes de Regressão de Módulos Auxiliares', () => {
     });
 
     // 5. Login automático para acessar a área administrativa
+    page.on('pageerror', err => console.log('PAGE ERROR: ' + err.toString()));
+    page.on('console', msg => { if (msg.type() === 'error') console.log('CONSOLE ERROR: ' + msg.text()); });
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await page.fill(SELECTORS.emailInput, 'presidencia@atleticalup.com.br');
     await page.fill(SELECTORS.passwordInput, 'lup123_strategy');

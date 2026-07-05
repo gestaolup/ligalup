@@ -16,7 +16,7 @@ CREATE OR REPLACE FUNCTION fn_trg_verificar_aprovacao_evento()
 RETURNS TRIGGER AS $$
 DECLARE
     v_user_cargo tipo_cargo;
-    v_user_diretoria tipo_diretoria;
+    v_user_diretoria TEXT;
     v_user_id UUID;
 BEGIN
     -- Recupera o ID do usuário da sessão (configurado pela aplicação antes da query)
@@ -33,10 +33,11 @@ BEGIN
             RAISE EXCEPTION 'Acesso negado: Usuário de sessão não definido para aprovação de eventos.' USING ERRCODE = '42501';
         END IF;
 
-        -- Busca informações do usuário executor
-        SELECT cargo, diretoria INTO v_user_cargo, v_user_diretoria 
-        FROM usuarios 
-        WHERE id = v_user_id AND status = TRUE;
+        -- Busca informações do usuário executor e nome da diretoria
+        SELECT u.cargo, d.nome INTO v_user_cargo, v_user_diretoria 
+        FROM usuarios u
+        LEFT JOIN diretorias d ON u.diretoria_id = d.id
+        WHERE u.id = v_user_id AND u.status = TRUE;
 
         -- Regra: Apenas diretoria == 'Tesouraria' ou cargo == 'Presidência' ou 'Vice-Presidência'
         IF NOT (v_user_diretoria = 'Tesouraria' OR v_user_cargo IN ('Master') OR v_user_diretoria IN ('Presidência', 'Vice-Presidência')) THEN
@@ -148,7 +149,7 @@ CREATE OR REPLACE FUNCTION fn_trg_proteger_documentacao_atleta()
 RETURNS TRIGGER AS $$
 DECLARE
     v_user_cargo tipo_cargo;
-    v_user_diretoria tipo_diretoria;
+    v_user_diretoria TEXT;
     v_user_id UUID;
 BEGIN
     -- Verifica se estão tentando alterar a documentação
@@ -165,9 +166,10 @@ BEGIN
         END IF;
 
         -- Busca informações do usuário
-        SELECT cargo, diretoria INTO v_user_cargo, v_user_diretoria 
-        FROM usuarios 
-        WHERE id = v_user_id AND status = TRUE;
+        SELECT u.cargo, d.nome INTO v_user_cargo, v_user_diretoria 
+        FROM usuarios u
+        LEFT JOIN diretorias d ON u.diretoria_id = d.id
+        WHERE u.id = v_user_id AND u.status = TRUE;
 
         -- Regra: Apenas diretoria == 'Jurídico' pode alterar a documentação dos atletas
         IF NOT (v_user_diretoria = 'Jurídico' OR v_user_cargo = 'Master') THEN

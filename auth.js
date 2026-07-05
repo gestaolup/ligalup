@@ -56,19 +56,7 @@ window.initAuth = function (deps) {
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Autenticação local (fallback offline sem Supabase).
-    // Verifica email/senha diretamente contra o DB em memória.
-    // -----------------------------------------------------------------------
-    function localAuth(email, password) {
-        const DB = getDB();
-        const user = DB.usuarios.find(u => u.email === email && u.status);
-        if (!user) return null;
-        const expectedPassword = user.senha || 'lup123_strategy';
-        if (password !== expectedPassword) return null;
-        return user;
-    }
-
+    // A autenticação agora depende estritamente do Supabase Auth.
     // -----------------------------------------------------------------------
     // Handler do formulário de login.
     // Fluxo: Supabase Auth → syncDB → busca na tabela usuarios → onLogin(user).
@@ -117,15 +105,8 @@ window.initAuth = function (deps) {
 
         } catch (err) {
             console.error('Erro no Supabase:', err);
-            // Fallback provisório (Mock) caso o Supabase ainda não tenha usuários
-            const localUser = localAuth(email, password);
-            if (localUser) {
-                console.warn('Fallback: Logado pelo cache local mockado.');
-                onLogin(localUser);
-            } else {
-                errEl.textContent = err.message || 'E-mail ou senha inválidos no Supabase.';
-                errEl.style.display = 'block';
-            }
+            errEl.textContent = err.message || 'E-mail ou senha inválidos no Supabase.';
+            errEl.style.display = 'block';
         }
 
         btnText.style.display = '';

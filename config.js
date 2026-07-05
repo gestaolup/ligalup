@@ -368,6 +368,7 @@ window.ConfigModule = (function() {
         loadConfig,
         renderDiretorias,
         toggleDiretoria,
-        togglePermissao
+        togglePermissao,
+        get globalConfig() { return globalConfig; }
     };
 })();
