@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
         atletas: [], produtos: [], produto_variantes: [], calendario_editorial: [],
         cronograma_postagens: [], escalacoes: [], participantes_evento: [],
         lancamentos_financeiros: [], parceiros_patrocinadores: [], documentos_contratos: [],
-        logs_notificacoes: [], fornecedores: [], pedidos_compra: [], chat_conversations: [
+        logs_notificacoes: [], fornecedores: [], pedidos_compra: [], permissoes: [], notificacoes_config: [], chat_conversations: [
             { id: 'conv-1', name: 'Geral LUP', type: 'Grupo', created_at: new Date().toISOString() }
         ],
         chat_participants: [], chat_messages: [], chat_attachments: []
@@ -43,6 +43,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // Estado do calendário do dashboard (Fase 5)
     let calendarCurrentDate = new Date();
     let calendarSelectedDate = new Date();
+
+    // ------------------------------------------------------------------------
+    // FUNÇÃO GLOBAL DE NOTIFICAÇÕES (Gatilhos)
+    // ------------------------------------------------------------------------
+    window.getNotificationEmail = function(gatilho) {
+        // Fallback de segurança primário (Master logado)
+        let fallbackEmail = window.currentUser && window.currentUser.cargo === 'Master' 
+            ? window.currentUser.email 
+            : 'presidencia@atleticalup.com.br';
+            
+        if (!window.DB || !window.DB.notificacoes_config) return fallbackEmail;
+        
+        const config = window.DB.notificacoes_config.find(n => n.gatilho === gatilho);
+        return (config && config.email_destino) ? config.email_destino : fallbackEmail;
+    };
 
 
 
@@ -212,18 +227,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // --- TRIGGER NOTIFICAÇÃO: Solicitação de Verba (SOLICITACAO_VERBA) ---
             if (newStatus === 'Aguardando Tesouraria') {
-                DB.logs_notificacoes.push({
-                    id: 'log_' + Date.now(),
+                const alertEmail = window.getNotificationEmail('SOLICITACAO_VERBA');
+                supabase.from('logs_notificacoes').insert([{
                     usuario_id: currentUser ? currentUser.id : 'u1',
                     tipo_notificacao: 'Email',
                     gatilho_regra: 'SOLICITACAO_VERBA',
-                    destinatario_email: 'financeiro@atleticalup.com.br',
+                    destinatario_email: alertEmail,
                     status_entrega: 'ENVIADO',
                     data_envio: new Date().toISOString().replace('T', ' ').substring(0, 16),
-                    erro_detalhe: null,
                     lida: false
-                });
-                logSQL(`INSERT INTO logs_notificacoes (usuario_id, tipo_notificacao, gatilho_regra, destinatario_email, status_entrega) VALUES ('${currentUser ? currentUser.id : 'u1'}', 'Email', 'SOLICITACAO_VERBA', 'financeiro@atleticalup.com.br', 'ENVIADO');`, 'query');
+                }]).then();
+                logSQL(`INSERT INTO logs_notificacoes (usuario_id, tipo_notificacao, gatilho_regra, destinatario_email, status_entrega) VALUES ('${currentUser ? currentUser.id : 'u1'}', 'Email', 'SOLICITACAO_VERBA', '${alertEmail}', 'ENVIADO');`, 'query');
                 logSQL(`Notificação de SOLICITACAO_VERBA disparada automaticamente para Tesouraria sobre o evento '${event.nome}'.`, 'success');
             }
 
@@ -378,18 +392,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // --- TRIGGER NOTIFICAÇÃO: Atleta Irregular (ATLETA_BARRADO) ---
             if (newStatus === 'Rejeitado') {
-                DB.logs_notificacoes.push({
-                    id: 'log_' + Date.now(),
+                const alertEmail = window.getNotificationEmail('ATLETA_BARRADO');
+                supabase.from('logs_notificacoes').insert([{
                     usuario_id: currentUser ? currentUser.id : 'u1',
                     tipo_notificacao: 'Email',
                     gatilho_regra: 'ATLETA_BARRADO',
-                    destinatario_email: 'esportes@atleticalup.com.br',
+                    destinatario_email: alertEmail,
                     status_entrega: 'ENVIADO',
                     data_envio: new Date().toISOString().replace('T', ' ').substring(0, 16),
-                    erro_detalhe: `Documentos do atleta ${athlete.nome} rejeitados. Escalação impedida.`,
                     lida: false
-                });
-                logSQL(`INSERT INTO logs_notificacoes (usuario_id, tipo_notificacao, gatilho_regra, destinatario_email, status_entrega) VALUES ('${currentUser ? currentUser.id : 'u1'}', 'Email', 'ATLETA_BARRADO', 'esportes@atleticalup.com.br', 'ENVIADO');`, 'query');
+                }]).then();
+                logSQL(`INSERT INTO logs_notificacoes (usuario_id, tipo_notificacao, gatilho_regra, destinatario_email, status_entrega) VALUES ('${currentUser ? currentUser.id : 'u1'}', 'Email', 'ATLETA_BARRADO', '${alertEmail}', 'ENVIADO');`, 'query');
                 logSQL(`Notificação de ATLETA_BARRADO disparada para Esportes e Coordenador sobre atleta '${athlete.nome}'.`, 'success');
             }
 
@@ -566,16 +579,32 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
                     const realUID = authData?.user?.id || tempId;
+                    const createdUser = { id: realUID, nome, email, cargo, diretoria, diretoria_id };
+                    
                     // Atualiza ID local para o UUID real
                     const localUser = DB.usuarios.find(u => u.email === email);
                     if (localUser) localUser.id = realUID;
 
                     // Grava na tabela usuarios com o UUID real
-                    supabase.from('usuarios').upsert({
-                        id: realUID, nome, email, cargo, diretoria, diretoria_id, status: true
-                    }).then(({ error: dbError }) => {
+                    supabase.from('usuarios').upsert(createdUser).then(({ error: dbError }) => {
                         if (dbError) console.error('Erro ao gravar usuário na tabela:', dbError);
-                        else logSQL(`Usuário '${nome}' sincronizado no Supabase (UUID: ${realUID}).`, 'success');
+                        else {
+                            logSQL(`Usuário '${nome}' sincronizado no Supabase (UUID: ${realUID}).`, 'success');
+                            
+                            // Notifica a presidência
+                            const alertEmail = window.getNotificationEmail('NOVO_USUARIO');
+                            supabase.from('logs_notificacoes').insert([{
+                                usuario_id: realUID,
+                                tipo_notificacao: 'Email',
+                                gatilho_regra: 'NOVO_USUARIO',
+                                destinatario_email: alertEmail,
+                                status_entrega: 'ENVIADO',
+                                data_envio: new Date().toISOString().replace('T', ' ').substring(0, 16),
+                                lida: false
+                            }]).then(() => {
+                                logSQL(`INSERT INTO logs_notificacoes (usuario_id, tipo_notificacao, gatilho_regra, destinatario_email) VALUES ('${realUID}', 'Email', 'NOVO_USUARIO', '${alertEmail}');`, 'query');
+                            });
+                        }
                     });
                 });
 
@@ -1370,18 +1399,17 @@ navItems.forEach(item => {
 
         // --- TRIGGER NOTIFICAÇÃO: Solicitação de Verba para eventos do tipo Misto ou com orçamento previsto ---
         if (tipo === 'Misto' || orcamento > 0) {
-            DB.logs_notificacoes.push({
-                id: 'log_' + Date.now(),
+            const alertEmail = window.getNotificationEmail('SOLICITACAO_VERBA');
+            supabase.from('logs_notificacoes').insert([{
                 usuario_id: currentUser ? currentUser.id : 'u1',
                 tipo_notificacao: 'Email',
                 gatilho_regra: 'SOLICITACAO_VERBA',
-                destinatario_email: 'financeiro@atleticalup.com.br',
+                destinatario_email: alertEmail,
                 status_entrega: 'ENVIADO',
                 data_envio: new Date().toISOString().replace('T', ' ').substring(0, 16),
-                erro_detalhe: `Solicitação de verba para evento '${nome}' (${tipo}) de valor R$ ${orcamento.toFixed(2)}.`,
                 lida: false
-            });
-            logSQL(`INSERT INTO logs_notificacoes (usuario_id, tipo_notificacao, gatilho_regra, destinatario_email, status_entrega) VALUES ('${currentUser ? currentUser.id : 'u1'}', 'Email', 'SOLICITACAO_VERBA', 'financeiro@atleticalup.com.br', 'ENVIADO');`, 'query');
+            }]).then();
+            logSQL(`INSERT INTO logs_notificacoes (usuario_id, tipo_notificacao, gatilho_regra, destinatario_email, status_entrega) VALUES ('${currentUser ? currentUser.id : 'u1'}', 'Email', 'SOLICITACAO_VERBA', '${alertEmail}', 'ENVIADO');`, 'query');
             logSQL(`Notificação de SOLICITACAO_VERBA disparada automaticamente para Tesouraria.`, 'success');
         }
         
@@ -2544,17 +2572,17 @@ navItems.forEach(item => {
                 );
                 if (!jaNotificado) {
                     const parceiro = DB.parceiros_patrocinadores.find(p => p.id === dc.parceiro_id);
-                    DB.logs_notificacoes.push({
-                        id: 'log_' + Date.now() + '_' + dc.id,
+                    const alertEmail = window.getNotificationEmail('CONTRATO_VENCENDO');
+                    supabase.from('logs_notificacoes').insert([{
                         usuario_id: 'u1',
                         tipo_notificacao: 'Sistema',
                         gatilho_regra: 'CONTRATO_VENCENDO',
-                        destinatario_email: 'presidencia@atleticalup.com.br',
+                        destinatario_email: alertEmail,
                         status_entrega: 'ENVIADO',
                         data_envio: hoje.toISOString().replace('T', ' ').substring(0, 16),
                         erro_detalhe: `[doc:${dc.id}] Contrato "${dc.titulo}"${parceiro ? ` (${parceiro.nome_empresa})` : ''} vence em ${diffDays} dia(s), em ${dc.data_vencimento}.`,
                         lida: false
-                    });
+                    }]).then();
                     logSQL(`CRON CONTRATO_VENCENDO: Alerta gerado para o contrato '${dc.titulo}' (vence em ${diffDays} dia(s)).`, 'trigger');
                 }
             }

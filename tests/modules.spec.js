@@ -14,8 +14,10 @@ const path = require('path');
 const MOCK_MODULES_DATA = {
   usuarios: [
     { id: 'test-user-presidencia-001', nome: 'Ed Carlos Teste', email: 'presidencia@atleticalup.com.br', cargo: 'Master', diretoria: 'Presidência', status: true },
-    { id: 'usr-coord-01', nome: 'Renata LUP', email: 'coord.esportes@atleticalup.com.br', cargo: 'Coordenador', diretoria: 'Esportes', status: true }
+    { id: 'usr-fin-001', nome: 'Renata LUP', email: 'financeiro@atletica.com', cargo: 'Diretor', diretoria: 'Financeiro', status: true }
   ],
+  permissoes: [],
+  notificacoes_config: [],
   lancamentos_financeiros: [
     { id: 'fin-001', data_competencia: '2026-06-01', tipo: 'Entrada', categoria: 'Patrocínio Master', valor: 2500.50, status_conciliacao: true },
     { id: 'fin-002', data_competencia: '2026-06-05', tipo: 'Saída', categoria: 'Compra de Uniformes', valor: 1200.00, status_conciliacao: false }

@@ -226,17 +226,16 @@ window.initGED = function(deps) {
                 link_proposta_drive: link
             });
             
-            DB.logs_notificacoes.push({
-                id: 'log_' + Date.now(),
+            const alertEmail = window.getNotificationEmail('NOVA_PARCERIA');
+            supabase.from('logs_notificacoes').insert([{
                 usuario_id: currentUser ? currentUser.id : 'u1',
                 tipo_notificacao: 'Sistema',
                 gatilho_regra: 'NOVA_PARCERIA',
-                destinatario_email: 'juridico@atleticalup.com.br',
+                destinatario_email: alertEmail,
                 status_entrega: 'ENVIADO',
                 data_envio: new Date().toISOString().replace('T', ' ').substring(0, 16),
-                erro_detalhe: null,
                 lida: false
-            });
+            }]).then();
             
             logSQL(`INSERT INTO parceiros_patrocinadores (nome_empresa, tipo_parceria, status_funil, link_proposta_drive) VALUES ('${nome}', '${tipo}', 'Aguardando Contrato', '${link}');`, 'query');
             logSQL(`Notificação disparada para Diretoria Jurídica sobre nova proposta de parceria: ${nome}.`, 'success');
@@ -272,17 +271,16 @@ window.initGED = function(deps) {
                 logSQL(`UPDATE parceiros_patrocinadores SET status_funil = '${newStatus}' WHERE id = '${partnerId}';`, 'query');
                 logSQL(`Status da parceria '${partner.nome_empresa}' atualizado de '${oldStatus}' para '${newStatus}' pelo Jurídico.`, 'success');
 
-                DB.logs_notificacoes.push({
-                    id: 'log_' + Date.now(),
+                const alertEmail = window.getNotificationEmail('STATUS_PARCERIA_JURIDICO');
+                supabase.from('logs_notificacoes').insert([{
                     usuario_id: currentUser ? currentUser.id : 'u5',
                     tipo_notificacao: 'System',
                     gatilho_regra: 'STATUS_PARCERIA_JURIDICO',
-                    destinatario_email: 'parcerias@atleticalup.com.br',
+                    destinatario_email: alertEmail,
                     status_entrega: 'ENVIADO',
                     data_envio: new Date().toISOString().replace('T', ' ').substring(0, 16),
-                    erro_detalhe: null,
                     lida: false
-                });
+                }]).then();
             }
 
             closePartnerDetailModal();

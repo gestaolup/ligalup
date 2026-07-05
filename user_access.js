@@ -41,8 +41,28 @@ window.initUserAccess = function(deps) {
     // --- Checagem de permissão de escrita ---
     function canWrite(moduleId) {
         const currentUser = getCurrentUser();
+        
+        // 1. Fail-Safe: Se não há usuário logado, bloqueia
         if (!currentUser) return false;
+        
+        // 2. Regra de Ouro (Imutável): Master sempre pode escrever em qualquer módulo
         if (currentUser.cargo === 'Master') return true;
+        
+        // 3. Verifica se a diretoria_id do usuário está preenchida
+        if (!currentUser.diretoria_id) return false;
+
+        // 4. Se o banco já tiver as permissões (via window.DB.permissoes), usamos do banco
+        if (window.DB && window.DB.permissoes && window.DB.permissoes.length > 0) {
+            const hasPerm = window.DB.permissoes.some(p => 
+                p.acao_sistema === moduleId && 
+                p.diretoria_id === currentUser.diretoria_id && 
+                p.concedida === true
+            );
+            return hasPerm;
+        }
+
+        // 5. Fallback Inicial (para evitar bloqueio antes do SQL rodar)
+        // Usa o nome da diretoria (string) com o dicionário legado WRITE_PERMISSIONS
         const allowed = WRITE_PERMISSIONS[moduleId] || [];
         return allowed.includes(currentUser.diretoria);
     }

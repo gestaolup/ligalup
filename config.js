@@ -288,7 +288,7 @@ window.ConfigModule = (function() {
         { id: 'gerenciar_estoque', label: 'Gerenciar Estoque' }
     ];
 
-    const CARGOS = ['Master', 'Presidente', 'Vice-Presidente', 'Diretor', 'Membro'];
+    // Removido: const CARGOS = ['Master', 'Presidente', 'Vice-Presidente', 'Diretor', 'Membro'];
 
     let localPermissoes = [];
 
@@ -309,21 +309,40 @@ window.ConfigModule = (function() {
         const tbody = document.getElementById('lista-permissoes-master');
         if (!tbody) return;
 
+        const theadRow = document.getElementById('thead-permissoes-master');
+        if (theadRow) {
+            let ths = '<th>Módulos (Ação de Sistema)</th>';
+            ths += `<th style="text-align:center;">Master (Cargo)</th>`; // Coluna especial do Master
+            if (window.DB && window.DB.diretorias) {
+                window.DB.diretorias.filter(d => d.ativa).forEach(dir => {
+                    ths += `<th style="text-align:center;">${dir.nome}</th>`;
+                });
+            }
+            theadRow.innerHTML = ths;
+        }
+
+        if (!window.DB || !window.DB.diretorias) return;
+
         tbody.innerHTML = ACOES_SISTEMA.map(acao => {
             let rowHtml = `<tr><td><strong>${acao.label}</strong><br><small style="color:var(--text-secondary)">${acao.id}</small></td>`;
             
-            CARGOS.forEach(cargo => {
-                const perm = localPermissoes.find(p => p.acao_sistema === acao.id && p.cargo_id === cargo);
-                const isConcedida = perm ? perm.concedida : (cargo === 'Master');
-                const isMaster = cargo === 'Master';
+            // Coluna do Master (Sempre concedida, imutável)
+            rowHtml += `
+            <td style="text-align:center;">
+                <input type="checkbox" checked disabled
+                       style="accent-color: var(--primary); transform: scale(1.3); cursor: not-allowed;">
+            </td>`;
+            
+            window.DB.diretorias.filter(d => d.ativa).forEach(dir => {
+                const perm = localPermissoes.find(p => p.acao_sistema === acao.id && p.diretoria_id === dir.id);
+                const isConcedida = perm ? perm.concedida : false;
                 
                 rowHtml += `
                 <td style="text-align:center;">
                     <input type="checkbox" 
                            ${isConcedida ? 'checked' : ''} 
-                           ${isMaster ? 'disabled' : ''}
-                           onchange="window.ConfigModule.togglePermissao('${acao.id}', '${cargo}', this.checked)"
-                           style="accent-color: var(--primary); transform: scale(1.3); cursor: ${isMaster ? 'not-allowed' : 'pointer'};">
+                           onchange="window.ConfigModule.togglePermissao('${acao.id}', '${dir.id}', this.checked)"
+                           style="accent-color: var(--primary); transform: scale(1.3); cursor: pointer;">
                 </td>`;
             });
             
@@ -332,9 +351,9 @@ window.ConfigModule = (function() {
         }).join('');
     }
 
-    async function togglePermissao(acao_id, cargo_id, isConcedida) {
+    async function togglePermissao(acao_id, diretoria_id, isConcedida) {
         try {
-            const perm = localPermissoes.find(p => p.acao_sistema === acao_id && p.cargo_id === cargo_id);
+            const perm = localPermissoes.find(p => p.acao_sistema === acao_id && p.diretoria_id === diretoria_id);
             
             if (perm) {
                 const { error } = await window.supabaseClient
@@ -344,17 +363,11 @@ window.ConfigModule = (function() {
                 if (error) throw error;
                 perm.concedida = isConcedida;
             } else {
-                const newPerm = {
-                    id: crypto.randomUUID(),
-                    acao_sistema: acao_id,
-                    cargo_id: cargo_id,
-                    concedida: isConcedida
-                };
                 const { error } = await window.supabaseClient
                     .from('permissoes')
-                    .insert([newPerm]);
+                    .insert([{ acao_sistema: acao_id, diretoria_id: diretoria_id, concedida: isConcedida }]);
                 if (error) throw error;
-                localPermissoes.push(newPerm);
+                await loadPermissoes();
             }
         } catch (error) {
             console.error('[ConfigModule] Erro ao alternar permissão:', error);
