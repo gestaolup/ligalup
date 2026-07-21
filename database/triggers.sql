@@ -172,7 +172,7 @@ BEGIN
         WHERE u.id = v_user_id AND u.status = TRUE;
 
         -- Regra: Apenas diretoria == 'Jurídico' pode alterar a documentação dos atletas
-        IF NOT (v_user_diretoria = 'Jurídico' OR v_user_cargo = 'Master') THEN
+        IF NOT (v_user_diretoria = 'Jurídico' OR v_user_cargo = 'Master' OR v_user_cargo = 'Presidente' OR v_user_diretoria IN ('Presidência', 'Presidencia', 'Vice-Presidência', 'Vice-Presidencia')) THEN
             RAISE EXCEPTION 'Erro 403: Apenas membros do Jurídico podem validar ou reprovar documentos de atletas.' USING ERRCODE = '42501';
         END IF;
     END IF;
