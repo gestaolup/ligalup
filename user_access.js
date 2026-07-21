@@ -45,8 +45,8 @@ window.initUserAccess = function(deps) {
         // 1. Fail-Safe: Se não há usuário logado, bloqueia
         if (!currentUser) return false;
         
-        // 2. Regra de Ouro (Imutável): Master sempre pode escrever em qualquer módulo
-        if (currentUser.cargo === 'Master') return true;
+        // 2. Regra de Ouro: Master ou Presidência têm acesso total
+        if (currentUser.cargo === 'Master' || currentUser.cargo === 'Presidente' || currentUser.diretoria === 'Presidência') return true;
         
         // 3. Verifica se a diretoria_id do usuário está preenchida
         if (!currentUser.diretoria_id) return false;
@@ -71,8 +71,8 @@ window.initUserAccess = function(deps) {
     function canViewFinance() {
         const currentUser = getCurrentUser();
         if (!currentUser) return false;
-        if (currentUser.cargo === 'Master') return true;
-        return currentUser.diretoria === 'Tesouraria' || currentUser.diretoria === 'Presidência' || currentUser.diretoria === 'Vice-Presidência';
+        if (currentUser.cargo === 'Master' || currentUser.cargo === 'Presidente' || currentUser.diretoria === 'Presidência') return true;
+        return currentUser.diretoria === 'Tesouraria' || currentUser.diretoria === 'Vice-Presidência';
     }
 
     // --- Popula a sidebar após login ---
@@ -87,7 +87,7 @@ window.initUserAccess = function(deps) {
     function applyNavPermissions() {
         const currentUser = getCurrentUser();
         if (!currentUser) return;
-        const isMaster = currentUser.cargo === 'Master';
+        const isMaster = currentUser.cargo === 'Master' || currentUser.cargo === 'Presidente' || currentUser.diretoria === 'Presidência';
         const dir = currentUser.diretoria;
 
         // Reset visibility of conditional nav items

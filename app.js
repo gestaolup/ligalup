@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ------------------------------------------------------------------------
     window.getNotificationEmail = function(gatilho) {
         // Fallback de segurança primário (Master logado)
-        let fallbackEmail = window.currentUser && window.currentUser.cargo === 'Master' 
+        let fallbackEmail = window.currentUser && (window.currentUser.cargo === 'Master' || window.currentUser.cargo === 'Presidente' || window.currentUser.diretoria === 'Presidência')
             ? window.currentUser.email 
             : 'presidencia@atleticalup.com.br';
             
@@ -376,9 +376,9 @@ document.addEventListener('DOMContentLoaded', () => {
             logSQL(`UPDATE atletas SET status_documentacao = '${newStatus}' WHERE id = '${athleteId}';`, 'query');
             logSQL(`Evaluating trg_proteger_documentacao_atleta BEFORE UPDATE...`, 'trigger');
 
-            // RN-ESP-01: Apenas diretoria == 'Jurídico' ou Master pode alterar documentação
+            // RN-ESP-01: Apenas diretoria == 'Jurídico', Master ou Presidência pode alterar documentação
             const user = currentUser;
-            const isAuthorized = user.diretoria === 'Jurídico' || user.cargo === 'Master';
+            const isAuthorized = user.diretoria === 'Jurídico' || user.cargo === 'Master' || user.cargo === 'Presidente' || user.diretoria === 'Presidência';
 
             if (!isAuthorized) {
                 const msg = `Erro 403 (Permissão Negada): O usuário ${user.nome} (${user.cargo}/${user.diretoria}) tentou alterar a documentação de um atleta, mas esta ação é restrita exclusivamente ao departamento JURÍDICO da Atlética.`;

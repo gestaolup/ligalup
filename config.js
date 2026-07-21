@@ -117,7 +117,7 @@ window.ConfigModule = (function() {
             msg.style.display = 'block';
         } catch (error) {
             console.error('[ConfigModule] Erro ao salvar:', error);
-            msg.innerText = 'Erro ao salvar. Apenas a conta Master tem permissão.';
+            msg.innerText = 'Erro ao salvar. Apenas a conta Master ou Presidência têm permissão.';
             msg.style.color = 'var(--danger)';
             msg.style.display = 'block';
         } finally {
@@ -235,7 +235,7 @@ window.ConfigModule = (function() {
             renderDiretorias();
         } catch (error) {
             console.error('Erro ao alternar status da diretoria:', error);
-            alert('Erro ao alterar o status. Apenas usuários Master têm permissão.');
+            alert('Erro ao alterar o status. Apenas usuários Master ou Presidência têm permissão.');
         }
     }
 
@@ -271,7 +271,7 @@ window.ConfigModule = (function() {
             renderDiretorias();
         } catch (error) {
             console.error('Erro ao criar diretoria:', error);
-            alert('Erro ao criar diretoria. Verifique suas permissões (Master).');
+            alert('Erro ao criar diretoria. Verifique suas permissões (Master ou Presidência).');
         } finally {
             btn.innerHTML = origText;
             btn.disabled = false;
@@ -334,15 +334,17 @@ window.ConfigModule = (function() {
             </td>`;
             
             window.DB.diretorias.filter(d => d.ativa).forEach(dir => {
+                const isPresidency = dir.nome === 'Presidência' || dir.nome === 'Vice-Presidência';
                 const perm = localPermissoes.find(p => p.acao_sistema === acao.id && p.diretoria_id === dir.id);
-                const isConcedida = perm ? perm.concedida : false;
+                const isConcedida = isPresidency ? true : (perm ? perm.concedida : false);
                 
                 rowHtml += `
                 <td style="text-align:center;">
                     <input type="checkbox" 
                            ${isConcedida ? 'checked' : ''} 
+                           ${isPresidency ? 'disabled' : ''}
                            onchange="window.ConfigModule.togglePermissao('${acao.id}', '${dir.id}', this.checked)"
-                           style="accent-color: var(--primary); transform: scale(1.3); cursor: pointer;">
+                           style="accent-color: var(--primary); transform: scale(1.3); cursor: ${isPresidency ? 'not-allowed' : 'pointer'};">
                 </td>`;
             });
             
