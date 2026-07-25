@@ -23,22 +23,12 @@ window.initUserAccess = function(deps) {
     } = deps;
 
     // -----------------------------------------------------------------------
-    // MAPEAMENTO DE PERMISSÕES DE ESCRITA POR MÓDULO
+    // SPRINT 2: WRITE_PERMISSIONS (dicionário estático) foi removido.
+    // Toda autorização é agora 100% orientada a banco via window.DB.permissoes.
     // -----------------------------------------------------------------------
-    const WRITE_PERMISSIONS = {
-        'mod-dashboard':     ['Presidência', 'Vice-Presidência'],
-        'mod-acessos':       ['Presidência', 'Vice-Presidência'],  // só Master
-        'mod-eventos':       ['Presidência', 'Vice-Presidência', 'Tesouraria', 'Marketing', 'Esportes'],
-        'mod-marketing':     ['Presidência', 'Vice-Presidência', 'Marketing'],
-        'mod-produtos':      ['Presidência', 'Vice-Presidência', 'Tesouraria', 'Produtos'],
-        'mod-esportes':      ['Presidência', 'Vice-Presidência', 'Esportes', 'Jurídico'],
-        'mod-financeiro':    ['Presidência', 'Vice-Presidência', 'Tesouraria'],
-        'mod-parcerias':     ['Presidência', 'Vice-Presidência', 'Parcerias', 'Relações Externas'],
-        'mod-legal':         ['Presidência', 'Vice-Presidência', 'Jurídico'],
-        'mod-comunicacao':   ['Presidência', 'Vice-Presidência', 'Tesouraria', 'Marketing', 'Esportes', 'Jurídico', 'Produtos', 'Parcerias', 'Relações Externas', 'Nenhuma'],
-    };
 
     // Helper para verificar se o usuário pertence à diretoria executiva máxima (Master, Presidente, Vice)
+    // PRESERVADO INTACTO como bypass incondicional (prioridade zero).
     window.isExecutiveAdmin = function(user) {
         if (!user) return false;
         const cargo = user.cargo || '';
@@ -55,40 +45,45 @@ window.initUserAccess = function(deps) {
                diretoria === 'Vice-Presidencia';
     };
 
-    // --- Checagem de permissão de escrita ---
+    // --- Checagem de permissão de escrita (Sprint 2: 100% dinâmico) ---
     function canWrite(moduleId) {
         const currentUser = getCurrentUser();
-        
-        // 1. Fail-Safe: Se não há usuário logado, bloqueia
-        if (!currentUser) return false;
-        
-        // 2. Regra de Ouro: Executivos (Master, Presidência, Vice) têm acesso total
-        if (window.isExecutiveAdmin(currentUser)) return true;
-        
-        // 3. Verifica se a diretoria_id do usuário está preenchida
-        if (!currentUser.diretoria_id) return false;
 
-        // 4. Se o banco já tiver as permissões (via window.DB.permissoes), usamos do banco
-        if (window.DB && window.DB.permissoes && window.DB.permissoes.length > 0) {
-            const hasPerm = window.DB.permissoes.some(p => 
-                p.acao_sistema === moduleId && 
-                p.diretoria_id === currentUser.diretoria_id && 
+        // 1. Fail-Safe: nenhum usuário logado → bloqueia
+        if (!currentUser) return false;
+
+        // 2. Regra de Ouro (Bypass Incondicional): Executivos têm acesso total
+        if (window.isExecutiveAdmin(currentUser)) return true;
+
+        // 3. Coleta todas as diretorias vinculadas ao usuário (primária + secundárias de usuario_diretorias)
+        const userDirIds = Array.isArray(currentUser.diretorias_ids) && currentUser.diretorias_ids.length > 0
+            ? currentUser.diretorias_ids
+            : (currentUser.diretoria_id ? [currentUser.diretoria_id] : []);
+
+        // 4. Se não há diretoria vinculada, bloqueia (Fail-Safe)
+        if (userDirIds.length === 0) return false;
+
+        // 5. Consulta exclusivamente window.DB.permissoes (orientado a banco)
+        //    Libera se QUALQUER diretoria do usuário tiver concedida === true para o módulo
+        if (window.DB && window.DB.permissoes) {
+            return window.DB.permissoes.some(p =>
+                p.acao_sistema === moduleId &&
+                userDirIds.includes(p.diretoria_id) &&
                 p.concedida === true
             );
-            return hasPerm;
         }
 
-        // 5. Fallback Inicial (para evitar bloqueio antes do SQL rodar)
-        // Usa o nome da diretoria (string) com o dicionário legado WRITE_PERMISSIONS
-        const allowed = WRITE_PERMISSIONS[moduleId] || [];
-        return allowed.includes(currentUser.diretoria);
+        // 6. Fail-Safe final: se a tabela permissoes não existir no DB, bloqueia por segurança
+        return false;
     }
 
+    // Sprint 2: canViewFinance agora delega para canWrite('mod-financeiro'),
+    // eliminando a checagem literal de nome de diretoria.
     function canViewFinance() {
         const currentUser = getCurrentUser();
         if (!currentUser) return false;
         if (window.isExecutiveAdmin(currentUser)) return true;
-        return currentUser.diretoria === 'Tesouraria';
+        return canWrite('mod-financeiro');
     }
 
     // --- Popula a sidebar após login ---
@@ -99,40 +94,30 @@ window.initUserAccess = function(deps) {
             user.diretoria !== 'Nenhuma' ? `Dir. de ${user.diretoria}` : 'Geral';
     }
 
-    // --- Aplica visibilidade do menu financeiro ---
+    // --- Sprint 2: applyNavPermissions 100% dinâmico ---
+    // Todos os itens do menu (exceto as telas blindadas do núcleo executivo) são
+    // visíveis por padrão. Apenas os módulos blindados (mod-acessos e mod-master-config)
+    // permanecem restritos ao isExecutiveAdmin. Travas cruzadas hardcoded foram removidas.
     function applyNavPermissions() {
         const currentUser = getCurrentUser();
         if (!currentUser) return;
         const isMaster = window.isExecutiveAdmin(currentUser);
-        const dir = currentUser.diretoria;
 
-        // Reset visibility of conditional nav items
-        const parceriasNavItem = document.querySelector('[data-target="mod-parcerias"]');
-        const legalNavItem     = document.querySelector('[data-target="mod-legal"]');
-        if (parceriasNavItem) parceriasNavItem.style.display = '';
-        if (legalNavItem)     legalNavItem.style.display = '';
-
-        // Financeiro: somente Presidência, Vice-Presidência, Tesouraria e Master
+        // Financeiro: visível apenas para quem tem permissão de escrita no módulo (ou é executivo)
         const financeItem = document.querySelector('.nav-item-finance');
         if (financeItem) {
             financeItem.style.display = canViewFinance() ? '' : 'none';
         }
 
-        // Gestão de Acessos: apenas Master
+        // EXCEÇÃO DE SEGURANÇA (blindagem permanente no código-fonte):
+        // Gestão de Acessos (mod-acessos) e Configurações Globais (mod-master-config)
+        // são exclusivos do núcleo executivo — não depende de tabela de permissões.
         document.querySelectorAll('[data-requires-master]').forEach(item => {
             item.style.display = isMaster ? '' : 'none';
         });
 
-        if (!isMaster) {
-            // Jurídico: NÃO vê mod-parcerias no menu
-            if (dir === 'Jurídico') {
-                if (parceriasNavItem) parceriasNavItem.style.display = 'none';
-            }
-            // Parcerias: NÃO vê mod-legal no menu
-            if (dir === 'Parcerias') {
-                if (legalNavItem) legalNavItem.style.display = 'none';
-            }
-        }
+        // Todos os demais módulos da sidebar ficam visíveis por padrão.
+        // O applyReadonlyMode controla se o usuário pode editar ou apenas visualizar.
     }
 
     // --- Aplica modo somente leitura aos módulos ---

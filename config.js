@@ -279,13 +279,17 @@ window.ConfigModule = (function() {
     }
 
     // --- Permissões Matrix ---
+    // Sprint 2: ACOES_SISTEMA expandido para cobrir todos os módulos do sistema
     const ACOES_SISTEMA = [
-        { id: 'aprovar_evento', label: 'Aprovar Eventos' },
-        { id: 'criar_usuario', label: 'Criar Usuários' },
-        { id: 'excluir_usuario', label: 'Excluir Usuários' },
-        { id: 'editar_financas', label: 'Editar Finanças' },
-        { id: 'editar_documentos', label: 'Editar Documentos Jurídicos' },
-        { id: 'gerenciar_estoque', label: 'Gerenciar Estoque' }
+        { id: 'mod-dashboard',     label: 'Dashboard Executivo',        sublabel: 'Visualização de KPIs e calendário' },
+        { id: 'mod-eventos',       label: 'Diretoria de Eventos',        sublabel: 'Criar, editar e aprovar eventos' },
+        { id: 'mod-marketing',     label: 'Diretoria de Marketing',      sublabel: 'Campanhas e conteúdo editorial' },
+        { id: 'mod-produtos',      label: 'Produtos & Estoque',          sublabel: 'Cadastro e controle de inventário' },
+        { id: 'mod-esportes',      label: 'Esportes & Atletas',         sublabel: 'Modalidades, atletas e documentação' },
+        { id: 'mod-financeiro',    label: 'Tesouraria & Caixa',         sublabel: 'Lançamentos financeiros e conciliação' },
+        { id: 'mod-parcerias',     label: 'Diretoria de Parcerias',      sublabel: 'Funil de patrocinadores e parceiros' },
+        { id: 'mod-legal',         label: 'Jurídico & GED',             sublabel: 'Contratos, GED e documentos legais' },
+        { id: 'mod-comunicacao',   label: 'Comunicação',               sublabel: 'Canal de avisos internos' },
     ];
 
     // Removido: const CARGOS = ['Master', 'Presidente', 'Vice-Presidente', 'Diretor', 'Membro'];
@@ -324,7 +328,7 @@ window.ConfigModule = (function() {
         if (!window.DB || !window.DB.diretorias) return;
 
         tbody.innerHTML = ACOES_SISTEMA.map(acao => {
-            let rowHtml = `<tr><td><strong>${acao.label}</strong><br><small style="color:var(--text-secondary)">${acao.id}</small></td>`;
+            let rowHtml = `<tr><td><strong>${acao.label}</strong><br><small style="color:var(--text-secondary)">${acao.sublabel || acao.id}</small></td>`;
             
             // Coluna do Master (Sempre concedida, imutável)
             rowHtml += `

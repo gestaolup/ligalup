@@ -13,11 +13,20 @@ const path = require('path');
 // Dados mockados locais específicos para os testes de módulos
 const MOCK_MODULES_DATA = {
   usuarios: [
-    { id: 'test-user-presidencia-001', nome: 'Ed Carlos Teste', email: 'presidencia@atleticalup.com.br', cargo: 'Master', diretoria: 'Presidência', status: true },
-    { id: 'usr-fin-001', nome: 'Renata LUP', email: 'financeiro@atletica.com', cargo: 'Diretor', diretoria: 'Financeiro', status: true }
+    { id: 'test-user-presidencia-001', nome: 'Ed Carlos Teste', email: 'presidencia@atleticalup.com.br', cargo: 'Master', diretoria: 'Presidência', diretoria_id: 'dir-pres-001', diretorias_ids: ['dir-pres-001'], status: true },
+    { id: 'usr-fin-001', nome: 'Renata LUP', email: 'financeiro@atletica.com', cargo: 'Diretor', diretoria: 'Tesouraria', diretoria_id: 'dir-tes-001', diretorias_ids: ['dir-tes-001'], status: true }
   ],
-  usuario_diretorias: [],
-  permissoes: [],
+  diretorias: [
+    { id: 'dir-pres-001', nome: 'Presidência', ativa: true },
+    { id: 'dir-tes-001', nome: 'Tesouraria', ativa: true }
+  ],
+  usuario_diretorias: [
+    { id: 'ud-001', usuario_id: 'usr-fin-001', diretoria_id: 'dir-tes-001' }
+  ],
+  permissoes: [
+    { id: 'perm-001', acao_sistema: 'mod-financeiro', diretoria_id: 'dir-tes-001', concedida: true },
+    { id: 'perm-002', acao_sistema: 'mod-produtos',   diretoria_id: 'dir-tes-001', concedida: true }
+  ],
   notificacoes_config: [],
   lancamentos_financeiros: [
     { id: 'fin-001', data_competencia: '2026-06-01', tipo: 'Entrada', categoria: 'Patrocínio Master', valor: 2500.50, status_conciliacao: true },
