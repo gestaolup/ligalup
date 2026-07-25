@@ -829,7 +829,8 @@ document.addEventListener('DOMContentLoaded', () => {
             'produtos', 'produto_variantes', 'calendario_editorial', 'cronograma_postagens',
             'escalacoes', 'participantes_evento', 'lancamentos_financeiros',
             'parceiros_patrocinadores', 'documentos_contratos', 'logs_notificacoes',
-            'fornecedores', 'pedidos_compra', 'chat_conversations', 'chat_participants', 'chat_messages', 'diretorias'
+            'fornecedores', 'pedidos_compra', 'chat_conversations', 'chat_participants', 'chat_messages', 'diretorias',
+            'usuario_diretorias', 'permissoes', 'configuracoes_globais', 'notificacoes_config'
         ];
 
         try {
@@ -845,7 +846,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data?.length > 0) DB[table] = data;
             }
 
-            // Mapeamento transicional: injeta o nome da diretoria baseado no UUID para a interface
+            // Mapeamento transicional: injeta o nome da diretoria e computa diretorias_ids acumuladas
             if (DB.usuarios && DB.diretorias) {
                 DB.usuarios.forEach(u => {
                     if (u.diretoria_id) {
@@ -854,6 +855,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         u.diretoria = u.diretoria || 'Sem diretoria';
                     }
+
+                    // Suporte a Múltiplas Diretorias (Sprint 1): herda diretoria primária + secundárias da tabela relacional
+                    const linked = (DB.usuario_diretorias || [])
+                        .filter(ud => ud.usuario_id === u.id)
+                        .map(ud => ud.diretoria_id);
+                    const allIds = new Set();
+                    if (u.diretoria_id) allIds.add(u.diretoria_id);
+                    linked.forEach(id => { if (id) allIds.add(id); });
+                    u.diretorias_ids = Array.from(allIds);
                 });
             }
 

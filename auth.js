@@ -101,6 +101,17 @@ window.initAuth = function (deps) {
             }
             if (!user) throw new Error('Seu usuário foi criado no cofre, mas ainda não tem ficha na tabela de usuários. Peça ao Master para criar sua ficha.');
 
+            // Sprint 1: Garante a hidratação do array de diretorias vinculadas (primária + secundárias)
+            if (!user.diretorias_ids || user.diretorias_ids.length === 0) {
+                const linked = (DB.usuario_diretorias || [])
+                    .filter(ud => ud.usuario_id === user.id)
+                    .map(ud => ud.diretoria_id);
+                const allIds = new Set();
+                if (user.diretoria_id) allIds.add(user.diretoria_id);
+                linked.forEach(id => { if (id) allIds.add(id); });
+                user.diretorias_ids = Array.from(allIds);
+            }
+
             onLogin(user);
 
         } catch (err) {

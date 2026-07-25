@@ -16,6 +16,7 @@ const MOCK_SYNC_DATA = {
     { id: 'usr-2', nome: 'Bob Souza', email: 'bob@atleticalup.com.br', status: true },
     { id: 'usr-3', nome: 'Charlie Oliveira', email: 'charlie@atleticalup.com.br', status: false }
   ],
+  usuario_diretorias: [],
   chat_conversations: [
     { id: 'conv-1', name: 'Geral LUP', type: 'Grupo' }, // Conversa padrão (evita duplicar com seed)
     { id: 'conv-2', name: 'Diretoria LUP', type: 'Grupo' }

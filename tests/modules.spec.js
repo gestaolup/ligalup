@@ -16,6 +16,7 @@ const MOCK_MODULES_DATA = {
     { id: 'test-user-presidencia-001', nome: 'Ed Carlos Teste', email: 'presidencia@atleticalup.com.br', cargo: 'Master', diretoria: 'Presidência', status: true },
     { id: 'usr-fin-001', nome: 'Renata LUP', email: 'financeiro@atletica.com', cargo: 'Diretor', diretoria: 'Financeiro', status: true }
   ],
+  usuario_diretorias: [],
   permissoes: [],
   notificacoes_config: [],
   lancamentos_financeiros: [
