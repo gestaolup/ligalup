@@ -278,18 +278,25 @@ window.ConfigModule = (function() {
         }
     }
 
-    // --- Permissões Matrix ---
-    // Sprint 2: ACOES_SISTEMA expandido para cobrir todos os módulos do sistema
+    // Parte 1: ACOES_SISTEMA expandido com Módulos e Ações Granulares
     const ACOES_SISTEMA = [
-        { id: 'mod-dashboard',     label: 'Dashboard Executivo',        sublabel: 'Visualização de KPIs e calendário' },
-        { id: 'mod-eventos',       label: 'Diretoria de Eventos',        sublabel: 'Criar, editar e aprovar eventos' },
-        { id: 'mod-marketing',     label: 'Diretoria de Marketing',      sublabel: 'Campanhas e conteúdo editorial' },
-        { id: 'mod-produtos',      label: 'Produtos & Estoque',          sublabel: 'Cadastro e controle de inventário' },
-        { id: 'mod-esportes',      label: 'Esportes & Atletas',         sublabel: 'Modalidades, atletas e documentação' },
-        { id: 'mod-financeiro',    label: 'Tesouraria & Caixa',         sublabel: 'Lançamentos financeiros e conciliação' },
-        { id: 'mod-parcerias',     label: 'Diretoria de Parcerias',      sublabel: 'Funil de patrocinadores e parceiros' },
-        { id: 'mod-legal',         label: 'Jurídico & GED',             sublabel: 'Contratos, GED e documentos legais' },
-        { id: 'mod-comunicacao',   label: 'Comunicação',               sublabel: 'Canal de avisos internos' },
+        // --- Acesso a Módulos Visuais ---
+        { id: 'mod-dashboard',       label: 'Módulo: Dashboard Executivo',        sublabel: 'Acesso e visualização de KPIs e calendário' },
+        { id: 'mod-eventos',         label: 'Módulo: Diretoria de Eventos',        sublabel: 'Acesso à gestão de eventos e logística' },
+        { id: 'mod-marketing',       label: 'Módulo: Diretoria de Marketing',      sublabel: 'Acesso às campanhas e calendário editorial' },
+        { id: 'mod-produtos',        label: 'Módulo: Produtos & Estoque',          sublabel: 'Acesso ao catálogo e inventário' },
+        { id: 'mod-esportes',        label: 'Módulo: Esportes & Atletas',         sublabel: 'Acesso à gestão de modalidades e atletas' },
+        { id: 'mod-financeiro',      label: 'Módulo: Tesouraria & Caixa',         sublabel: 'Acesso aos lançamentos e livro caixa' },
+        { id: 'mod-parcerias',       label: 'Módulo: Diretoria de Parcerias',      sublabel: 'Acesso ao funil de patrocinadores' },
+        { id: 'mod-legal',           label: 'Módulo: Jurídico & GED',             sublabel: 'Acesso à gestão de contratos e GED' },
+        { id: 'mod-comunicacao',     label: 'Módulo: Comunicação',               sublabel: 'Acesso aos comunicados e canal interno' },
+        
+        // --- Ações Granulares Específicas ---
+        { id: 'aprovar_evento',      label: 'Ação: Aprovar Orçamento de Eventos', sublabel: 'Autorização final de orçamento de eventos' },
+        { id: 'validar_atleta',      label: 'Ação: Validar Documentação de Atletas', sublabel: 'Aprovação e reprovação de documentos' },
+        { id: 'gerenciar_usuarios',  label: 'Ação: Gerenciar Usuários e Acessos', sublabel: 'Criar, editar e alterar membros da diretoria' },
+        { id: 'editar_financas',     label: 'Ação: Editar Finanças e Conciliação', sublabel: 'Lançar e conciliar entradas/saídas no caixa' },
+        { id: 'editar_documentos',   label: 'Ação: Editar Contratos e Documentos GED', sublabel: 'Upload e alteração de documentos jurídicos' }
     ];
 
     // Removido: const CARGOS = ['Master', 'Presidente', 'Vice-Presidente', 'Diretor', 'Membro'];
