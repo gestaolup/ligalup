@@ -278,28 +278,105 @@ window.ConfigModule = (function() {
         }
     }
 
-    // Parte 1: ACOES_SISTEMA expandido com Módulos e Ações Granulares
-    const ACOES_SISTEMA = [
-        // --- Acesso a Módulos Visuais ---
-        { id: 'mod-dashboard',       label: 'Módulo: Dashboard Executivo',        sublabel: 'Acesso e visualização de KPIs e calendário' },
-        { id: 'mod-eventos',         label: 'Módulo: Diretoria de Eventos',        sublabel: 'Acesso à gestão de eventos e logística' },
-        { id: 'mod-marketing',       label: 'Módulo: Diretoria de Marketing',      sublabel: 'Acesso às campanhas e calendário editorial' },
-        { id: 'mod-produtos',        label: 'Módulo: Produtos & Estoque',          sublabel: 'Acesso ao catálogo e inventário' },
-        { id: 'mod-esportes',        label: 'Módulo: Esportes & Atletas',         sublabel: 'Acesso à gestão de modalidades e atletas' },
-        { id: 'mod-financeiro',      label: 'Módulo: Tesouraria & Caixa',         sublabel: 'Acesso aos lançamentos e livro caixa' },
-        { id: 'mod-parcerias',       label: 'Módulo: Diretoria de Parcerias',      sublabel: 'Acesso ao funil de patrocinadores' },
-        { id: 'mod-legal',           label: 'Módulo: Jurídico & GED',             sublabel: 'Acesso à gestão de contratos e GED' },
-        { id: 'mod-comunicacao',     label: 'Módulo: Comunicação',               sublabel: 'Acesso aos comunicados e canal interno' },
-        
-        // --- Ações Granulares Específicas ---
-        { id: 'aprovar_evento',      label: 'Ação: Aprovar Orçamento de Eventos', sublabel: 'Autorização final de orçamento de eventos' },
-        { id: 'validar_atleta',      label: 'Ação: Validar Documentação de Atletas', sublabel: 'Aprovação e reprovação de documentos' },
-        { id: 'gerenciar_usuarios',  label: 'Ação: Gerenciar Usuários e Acessos', sublabel: 'Criar, editar e alterar membros da diretoria' },
-        { id: 'editar_financas',     label: 'Ação: Editar Finanças e Conciliação', sublabel: 'Lançar e conciliar entradas/saídas no caixa' },
-        { id: 'editar_documentos',   label: 'Ação: Editar Contratos e Documentos GED', sublabel: 'Upload e alteração de documentos jurídicos' }
+    // Mapeamento Funcional Estruturado por Categoria / Módulo
+    const CATEGORIAS_PERMISSOES = [
+        {
+            modulo: 'mod-dashboard',
+            titulo: 'Dashboard Executivo',
+            icone: 'fas fa-chart-line',
+            acoes: [
+                { id: 'mod-dashboard', label: 'Visualizar Dashboard', sublabel: 'Acesso e visualização de KPIs, indicadores e calendário' },
+                { id: 'mod-dashboard:export', label: 'Exportar Relatórios Executivos', sublabel: 'Download de demonstrativos gerenciais e dados da Atlética' }
+            ]
+        },
+        {
+            modulo: 'mod-eventos',
+            titulo: 'Diretoria de Eventos',
+            icone: 'fas fa-calendar-alt',
+            acoes: [
+                { id: 'mod-eventos', label: 'Visualizar Módulo Eventos', sublabel: 'Acesso à lista de eventos e cronograma logístico' },
+                { id: 'mod-eventos:create', label: 'Criar Eventos', sublabel: 'Cadastrar novos eventos em modo rascunho' },
+                { id: 'mod-eventos:edit', label: 'Editar Eventos', sublabel: 'Alterar datas, locais, informações e orçamentos previstos' },
+                { id: 'aprovar_evento', label: 'Aprovar Orçamento de Eventos', sublabel: 'Autorização e liberação financeira final de eventos' },
+                { id: 'mod-eventos:delete', label: 'Excluir / Cancelar Eventos', sublabel: 'Cancelar ou remover eventos cadastrados' }
+            ]
+        },
+        {
+            modulo: 'mod-marketing',
+            titulo: 'Diretoria de Marketing',
+            icone: 'fas fa-bullhorn',
+            acoes: [
+                { id: 'mod-marketing', label: 'Visualizar Módulo Marketing', sublabel: 'Acesso às campanhas e ao calendário editorial' },
+                { id: 'mod-marketing:create', label: 'Criar Posts & Campanhas', sublabel: 'Agendar novas publicações e conteúdos' },
+                { id: 'mod-marketing:edit', label: 'Editar Campanhas', sublabel: 'Alterar datas, mídias e artes das postagens' },
+                { id: 'mod-marketing:delete', label: 'Remover Postagens', sublabel: 'Excluir posts agendados do calendário' }
+            ]
+        },
+        {
+            modulo: 'mod-produtos',
+            titulo: 'Produtos & Estoque (Loja)',
+            icone: 'fas fa-box-open',
+            acoes: [
+                { id: 'mod-produtos', label: 'Visualizar Produtos & Estoque', sublabel: 'Acesso ao catálogo de produtos e unidades em estoque' },
+                { id: 'mod-produtos:create', label: 'Cadastrar Produtos', sublabel: 'Adicionar novos itens à loja oficial' },
+                { id: 'gerenciar_estoque', label: 'Gerenciar Estoque & Variantes', sublabel: 'Ajustar estoque por variante (tamanhos P/M/G)' },
+                { id: 'mod-produtos:delete', label: 'Excluir Produtos', sublabel: 'Remover itens do catálogo e do estoque' }
+            ]
+        },
+        {
+            modulo: 'mod-esportes',
+            titulo: 'Esportes & Atletas',
+            icone: 'fas fa-running',
+            acoes: [
+                { id: 'mod-esportes', label: 'Visualizar Módulo Esportes', sublabel: 'Acesso às modalidades, times e atletas' },
+                { id: 'mod-esportes:create', label: 'Cadastrar Atletas & Escalações', sublabel: 'Inscrever novos atletas e vincular modalidades' },
+                { id: 'validar_atleta', label: 'Validar Documentação de Atletas', sublabel: 'Aprovar ou reprovar atestados e documentos de atletas' },
+                { id: 'mod-esportes:edit', label: 'Editar Ficha do Atleta', sublabel: 'Alterar informações acadêmicas e de saúde dos atletas' }
+            ]
+        },
+        {
+            modulo: 'mod-financeiro',
+            titulo: 'Tesouraria & Caixa',
+            icone: 'fas fa-wallet',
+            acoes: [
+                { id: 'mod-financeiro', label: 'Visualizar Tesouraria & Caixa', sublabel: 'Acesso ao livro caixa e extrato de lançamentos' },
+                { id: 'mod-financeiro:create', label: 'Lançar Entradas & Saídas', sublabel: 'Inserir novas movimentações financeiras no caixa' },
+                { id: 'editar_financas', label: 'Editar Finanças & Conciliação', sublabel: 'Alterar lançamentos e realizar conciliação bancária' },
+                { id: 'mod-financeiro:export', label: 'Exportar Extrato Financeiro', sublabel: 'Download do demonstrativo do livro caixa' }
+            ]
+        },
+        {
+            modulo: 'mod-parcerias',
+            titulo: 'Diretoria de Parcerias',
+            icone: 'fas fa-handshake',
+            acoes: [
+                { id: 'mod-parcerias', label: 'Visualizar Funil de Parcerias', sublabel: 'Acesso ao CRM e lista de patrocinadores' },
+                { id: 'mod-parcerias:create', label: 'Cadastrar Novos Parceiros', sublabel: 'Adicionar empresas ao funil de negociação' },
+                { id: 'mod-parcerias:edit', label: 'Atualizar Etapas do Funil', sublabel: 'Avançar parceiros nas fases da negociação' },
+                { id: 'mod-parcerias:delete', label: 'Arquivar / Excluir Parcerias', sublabel: 'Remover patrocinadores do funil de vendas' }
+            ]
+        },
+        {
+            modulo: 'mod-legal',
+            titulo: 'Jurídico & GED',
+            icone: 'fas fa-file-contract',
+            acoes: [
+                { id: 'mod-legal', label: 'Visualizar Jurídico & GED', sublabel: 'Acesso ao repositório de contratos e arquivos legais' },
+                { id: 'mod-legal:create', label: 'Upload de Contratos & Documentos', sublabel: 'Anexar novos contratos e minutas jurídicas no GED' },
+                { id: 'editar_documentos', label: 'Editar Status & Contratos', sublabel: 'Alterar prazos, parceiros e termos contratuais' },
+                { id: 'mod-legal:delete', label: 'Excluir Documentos do GED', sublabel: 'Remover arquivos salvos no repositório' }
+            ]
+        },
+        {
+            modulo: 'mod-comunicacao',
+            titulo: 'Comunicação Interna',
+            icone: 'fas fa-comments',
+            acoes: [
+                { id: 'mod-comunicacao', label: 'Visualizar Painel de Comunicação', sublabel: 'Acesso aos avisos e mural interno' },
+                { id: 'mod-comunicacao:create', label: 'Disparar Comunicados Gerais', sublabel: 'Publicar avisos importantes para toda a diretoria' }
+            ]
+        }
     ];
-
-    // Removido: const CARGOS = ['Master', 'Presidente', 'Vice-Presidente', 'Diretor', 'Membro'];
 
     let localPermissoes = [];
 
@@ -309,9 +386,10 @@ window.ConfigModule = (function() {
             const { data, error } = await window.supabaseClient.from('permissoes').select('*');
             if (error) throw error;
             localPermissoes = data || [];
+            if (window.DB) window.DB.permissoes = localPermissoes;
         } catch (error) {
             console.warn('[ConfigModule] Tabela permissoes pode não existir ainda ou erro de acesso:', error);
-            localPermissoes = [];
+            localPermissoes = (window.DB && window.DB.permissoes) ? window.DB.permissoes : [];
         }
         renderPermissoesMatrix();
     }
@@ -320,53 +398,76 @@ window.ConfigModule = (function() {
         const tbody = document.getElementById('lista-permissoes-master');
         if (!tbody) return;
 
+        const activeDirectorias = (window.DB && window.DB.diretorias)
+            ? window.DB.diretorias.filter(d => d.ativa)
+            : [];
+
+        const totalCols = 2 + activeDirectorias.length; // 1 Funcionalidade + 1 Master + N Diretorias
+
         const theadRow = document.getElementById('thead-permissoes-master');
         if (theadRow) {
-            let ths = '<th>Módulos (Ação de Sistema)</th>';
-            ths += `<th style="text-align:center;">Master (Cargo)</th>`; // Coluna especial do Master
-            if (window.DB && window.DB.diretorias) {
-                window.DB.diretorias.filter(d => d.ativa).forEach(dir => {
-                    ths += `<th style="text-align:center;">${dir.nome}</th>`;
-                });
-            }
+            let ths = '<th style="min-width: 320px; text-align: left; padding: 12px 16px;">Módulos & Funcionalidades Operacionais</th>';
+            ths += `<th style="text-align:center; min-width: 120px; padding: 12px 8px;">Master (Cargo)</th>`;
+            activeDirectorias.forEach(dir => {
+                ths += `<th style="text-align:center; min-width: 130px; padding: 12px 8px;">${dir.nome}</th>`;
+            });
             theadRow.innerHTML = ths;
         }
 
-        if (!window.DB || !window.DB.diretorias) return;
+        let matrixHtml = '';
 
-        tbody.innerHTML = ACOES_SISTEMA.map(acao => {
-            let rowHtml = `<tr><td><strong>${acao.label}</strong><br><small style="color:var(--text-secondary)">${acao.sublabel || acao.id}</small></td>`;
-            
-            // Coluna do Master (Sempre concedida, imutável)
-            rowHtml += `
-            <td style="text-align:center;">
-                <input type="checkbox" checked disabled
-                       style="accent-color: var(--primary); transform: scale(1.3); cursor: not-allowed;">
-            </td>`;
-            
-            window.DB.diretorias.filter(d => d.ativa).forEach(dir => {
-                const isPresidency = dir.nome === 'Presidência' || dir.nome === 'Vice-Presidência';
-                const perm = localPermissoes.find(p => p.acao_sistema === acao.id && p.diretoria_id === dir.id);
-                const isConcedida = isPresidency ? true : (perm ? perm.concedida : false);
-                
-                rowHtml += `
-                <td style="text-align:center;">
-                    <input type="checkbox" 
-                           ${isConcedida ? 'checked' : ''} 
-                           ${isPresidency ? 'disabled' : ''}
-                           onchange="window.ConfigModule.togglePermissao('${acao.id}', '${dir.id}', this.checked)"
-                           style="accent-color: var(--primary); transform: scale(1.3); cursor: ${isPresidency ? 'not-allowed' : 'pointer'};">
-                </td>`;
+        CATEGORIAS_PERMISSOES.forEach(cat => {
+            // Subcabeçalho de Módulo com visual destacado
+            matrixHtml += `
+            <tr class="perm-category-header" style="background: rgba(212, 175, 55, 0.12); border-top: 2px solid rgba(212, 175, 55, 0.3); border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+                <td colspan="${totalCols}" style="padding: 10px 16px; font-weight: 700; color: #D4AF37; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;">
+                    <i class="${cat.icone}" style="margin-right: 8px;"></i> ${cat.titulo}
+                </td>
+            </tr>`;
+
+            // Linhas das Ações Operacionais da Categoria
+            cat.acoes.forEach(acao => {
+                matrixHtml += `<tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                    <td style="padding: 10px 16px 10px 28px;">
+                        <strong style="color: var(--text-primary, #ffffff); font-size: 13px;">${acao.label}</strong>
+                        <br>
+                        <small style="color: var(--text-secondary, #94a3b8); font-size: 11px;">${acao.sublabel}</small>
+                        <span style="font-size: 10px; color: rgba(212, 175, 55, 0.7); font-family: monospace; display: block; margin-top: 2px;">[Chave: ${acao.id}]</span>
+                    </td>
+                    
+                    <!-- Coluna Master (Sempre concedida, imutável) -->
+                    <td style="text-align:center; vertical-align: middle;">
+                        <input type="checkbox" checked disabled
+                               title="Acesso incondicional concedido ao Master"
+                               style="accent-color: #D4AF37; transform: scale(1.25); cursor: not-allowed;">
+                    </td>`;
+
+                activeDirectorias.forEach(dir => {
+                    const isPresidency = dir.nome === 'Presidência' || dir.nome === 'Vice-Presidência';
+                    const perm = localPermissoes.find(p => p.acao_sistema === acao.id && p.diretoria_id === dir.id);
+                    const isConcedida = isPresidency ? true : (perm ? perm.concedida : false);
+
+                    matrixHtml += `
+                    <td style="text-align:center; vertical-align: middle;">
+                        <input type="checkbox" 
+                               ${isConcedida ? 'checked' : ''} 
+                               ${isPresidency ? 'disabled' : ''}
+                               title="${isPresidency ? 'Acesso incondicional do Núcleo Executivo' : `Permissão ${acao.id} para ${dir.nome}`}"
+                               onchange="window.ConfigModule.togglePermissao('${acao.id}', '${dir.id}', this.checked)"
+                               style="accent-color: #D4AF37; transform: scale(1.25); cursor: ${isPresidency ? 'not-allowed' : 'pointer'};">
+                    </td>`;
+                });
+
+                matrixHtml += `</tr>`;
             });
-            
-            rowHtml += `</tr>`;
-            return rowHtml;
-        }).join('');
+        });
+
+        tbody.innerHTML = matrixHtml;
     }
 
     async function togglePermissao(acao_id, diretoria_id, isConcedida) {
         try {
-            const perm = localPermissoes.find(p => p.acao_sistema === acao_id && p.diretoria_id === diretoria_id);
+            let perm = localPermissoes.find(p => p.acao_sistema === acao_id && p.diretoria_id === diretoria_id);
             
             if (perm) {
                 const { error } = await window.supabaseClient
@@ -376,15 +477,26 @@ window.ConfigModule = (function() {
                 if (error) throw error;
                 perm.concedida = isConcedida;
             } else {
-                const { error } = await window.supabaseClient
+                const { data, error } = await window.supabaseClient
                     .from('permissoes')
-                    .insert([{ acao_sistema: acao_id, diretoria_id: diretoria_id, concedida: isConcedida }]);
+                    .insert([{ acao_sistema: acao_id, diretoria_id: diretoria_id, concedida: isConcedida }])
+                    .select();
                 if (error) throw error;
-                await loadPermissoes();
+                if (data && data.length > 0) {
+                    localPermissoes.push(data[0]);
+                } else {
+                    localPermissoes.push({ acao_sistema: acao_id, diretoria_id: diretoria_id, concedida: isConcedida });
+                }
             }
+
+            // Sincroniza em memória no DB global para atualização imediata
+            if (window.DB) {
+                window.DB.permissoes = localPermissoes;
+            }
+
         } catch (error) {
             console.error('[ConfigModule] Erro ao alternar permissão:', error);
-            alert('Erro ao alterar permissão. Verifique se a tabela foi criada no banco.');
+            alert('Erro ao alterar permissão no banco de dados. Verifique a conexão.');
             renderPermissoesMatrix();
         }
     }

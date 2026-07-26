@@ -64,13 +64,27 @@ window.initUserAccess = function(deps) {
         if (userDirIds.length === 0) return false;
 
         // 5. Consulta exclusivamente window.DB.permissoes (orientado a banco)
-        //    Libera se QUALQUER diretoria do usuário tiver concedida === true para o módulo
+        // Libera se QUALQUER diretoria do usuário tiver concedida === true para o módulo ou ação específica
         if (window.DB && window.DB.permissoes) {
-            return window.DB.permissoes.some(p =>
-                p.acao_sistema === moduleId &&
-                userDirIds.includes(p.diretoria_id) &&
-                p.concedida === true
-            );
+            return window.DB.permissoes.some(p => {
+                if (!p.concedida || !userDirIds.includes(p.diretoria_id)) return false;
+                
+                // Match exato do ID do módulo ou da ação granular
+                if (p.acao_sistema === moduleId) return true;
+                
+                // Se testou a chave do módulo (ex: 'mod-financeiro'), aceita se houver ação granular concedida para esse módulo
+                if (p.acao_sistema.startsWith(moduleId + ':')) return true;
+                
+                // Mapeamento correlacionado entre ações granulares e módulos
+                if (moduleId === 'mod-financeiro' && (p.acao_sistema === 'editar_financas' || p.acao_sistema === 'aprovar_evento')) return true;
+                if (moduleId === 'mod-eventos' && p.acao_sistema === 'aprovar_evento') return true;
+                if (moduleId === 'mod-esportes' && p.acao_sistema === 'validar_atleta') return true;
+                if (moduleId === 'mod-legal' && p.acao_sistema === 'editar_documentos') return true;
+                if (moduleId === 'mod-produtos' && p.acao_sistema === 'gerenciar_estoque') return true;
+                if (moduleId === 'mod-acessos' && p.acao_sistema === 'gerenciar_usuarios') return true;
+
+                return false;
+            });
         }
 
         // 6. Fail-Safe final: se a tabela permissoes não existir no DB, bloqueia por segurança
