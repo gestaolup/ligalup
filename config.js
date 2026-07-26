@@ -406,26 +406,25 @@ window.ConfigModule = (function() {
 
         const theadRow = document.getElementById('thead-permissoes-master');
         if (theadRow) {
-            // Primeira coluna sticky para ancorar o nome da ação enquanto a tabela rola horizontalmente
-            const bgSticky = 'background: var(--bg-card, #13131f)';
-            let ths = `<th style="min-width:300px; max-width:300px; text-align:left; padding:12px 16px; position:sticky; left:0; z-index:3; ${bgSticky}; white-space:normal;">Módulos & Funcionalidades Operacionais</th>`;
-            ths += `<th style="text-align:center; min-width:100px; padding:12px 8px; white-space:nowrap;">Master</th>`;
+            const bgHeader = 'background: #13131f; border-bottom: 2px solid rgba(212, 175, 55, 0.4);';
+            let ths = `<th style="min-width:300px; max-width:300px; text-align:left; padding:12px 16px; position:sticky; top:0; left:0; z-index:20; ${bgHeader} white-space:normal;">Módulos & Funcionalidades Operacionais</th>`;
+            ths += `<th style="text-align:center; min-width:100px; padding:12px 8px; position:sticky; top:0; z-index:10; ${bgHeader} white-space:nowrap;">Master</th>`;
             activeDirectorias.forEach(dir => {
-                ths += `<th style="text-align:center; min-width:110px; padding:12px 8px; white-space:nowrap;">${dir.nome}</th>`;
+                ths += `<th style="text-align:center; min-width:110px; padding:12px 8px; position:sticky; top:0; z-index:10; ${bgHeader} white-space:nowrap;">${dir.nome}</th>`;
             });
             theadRow.innerHTML = ths;
         }
 
         let matrixHtml = '';
 
-        const bgStickyRow = 'background: var(--bg-card, #13131f)';
-        const bgCatRow = 'background: rgba(212, 175, 55, 0.12)';
+        const bgStickyRow = 'background: #13131f; border-bottom: 1px solid rgba(255,255,255,0.05);';
+        const bgCatRow = 'background: #231d10; border-top: 2px solid rgba(212, 175, 55, 0.3); border-bottom: 1px solid rgba(212, 175, 55, 0.2);';
 
         CATEGORIAS_PERMISSOES.forEach(cat => {
             // Subcabeçalho de Módulo
             matrixHtml += `
-            <tr class="perm-category-header" style="${bgCatRow}; border-top: 2px solid rgba(212, 175, 55, 0.3); border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
-                <td colspan="${totalCols}" style="padding: 10px 16px; font-weight: 700; color: #D4AF37; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; position:sticky; left:0; ${bgCatRow};">
+            <tr class="perm-category-header" style="${bgCatRow}">
+                <td colspan="${totalCols}" style="padding: 10px 16px; font-weight: 700; color: #D4AF37; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; position:sticky; left:0; z-index:5; background:#231d10;">
                     <i class="${cat.icone}" style="margin-right: 8px;"></i> ${cat.titulo}
                 </td>
             </tr>`;
