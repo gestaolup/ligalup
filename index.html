@@ -1701,18 +1701,14 @@
                     <!-- Conteúdo: Matriz de Permissões -->
                     <div id="content-permissoes" style="display:none;">
                         <p style="color:var(--text-secondary); font-size:14px; margin-bottom:16px;">
-                            Controle quais cargos têm permissão para executar ações críticas no sistema.
+                            Controle quais diretorias têm permissão para executar ações e acessar módulos no sistema.
                         </p>
-                        <div class="table-responsive">
-                            <table class="data-table" id="table-permissoes">
+                        <div style="width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:8px;">
+                            <table id="table-permissoes" style="width:max-content; min-width:100%; border-collapse:collapse; text-align:left;">
                                 <thead>
                                     <tr id="thead-permissoes-master">
-                                        <th>Ação de Sistema</th>
-                                        <th style="text-align:center;">Master</th>
-                                        <th style="text-align:center;">Presidente</th>
-                                        <th style="text-align:center;">Vice-Presidente</th>
-                                        <th style="text-align:center;">Diretor</th>
-                                        <th style="text-align:center;">Membro</th>
+                                        <th style="min-width:320px; text-align:left; padding:12px 16px; position:sticky; left:0; z-index:2; background:var(--bg-glass, #1a1a2e);">Módulos & Funcionalidades Operacionais</th>
+                                        <th style="text-align:center; min-width:120px; padding:12px 8px; white-space:nowrap;">Master (Cargo)</th>
                                     </tr>
                                 </thead>
                                 <tbody id="lista-permissoes-master">

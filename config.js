@@ -406,37 +406,41 @@ window.ConfigModule = (function() {
 
         const theadRow = document.getElementById('thead-permissoes-master');
         if (theadRow) {
-            let ths = '<th style="min-width: 320px; text-align: left; padding: 12px 16px;">Módulos & Funcionalidades Operacionais</th>';
-            ths += `<th style="text-align:center; min-width: 120px; padding: 12px 8px;">Master (Cargo)</th>`;
+            // Primeira coluna sticky para ancorar o nome da ação enquanto a tabela rola horizontalmente
+            const bgSticky = 'background: var(--bg-card, #13131f)';
+            let ths = `<th style="min-width:300px; max-width:300px; text-align:left; padding:12px 16px; position:sticky; left:0; z-index:3; ${bgSticky}; white-space:normal;">Módulos & Funcionalidades Operacionais</th>`;
+            ths += `<th style="text-align:center; min-width:100px; padding:12px 8px; white-space:nowrap;">Master</th>`;
             activeDirectorias.forEach(dir => {
-                ths += `<th style="text-align:center; min-width: 130px; padding: 12px 8px;">${dir.nome}</th>`;
+                ths += `<th style="text-align:center; min-width:110px; padding:12px 8px; white-space:nowrap;">${dir.nome}</th>`;
             });
             theadRow.innerHTML = ths;
         }
 
         let matrixHtml = '';
 
+        const bgStickyRow = 'background: var(--bg-card, #13131f)';
+        const bgCatRow = 'background: rgba(212, 175, 55, 0.12)';
+
         CATEGORIAS_PERMISSOES.forEach(cat => {
-            // Subcabeçalho de Módulo com visual destacado
+            // Subcabeçalho de Módulo
             matrixHtml += `
-            <tr class="perm-category-header" style="background: rgba(212, 175, 55, 0.12); border-top: 2px solid rgba(212, 175, 55, 0.3); border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
-                <td colspan="${totalCols}" style="padding: 10px 16px; font-weight: 700; color: #D4AF37; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;">
+            <tr class="perm-category-header" style="${bgCatRow}; border-top: 2px solid rgba(212, 175, 55, 0.3); border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+                <td colspan="${totalCols}" style="padding: 10px 16px; font-weight: 700; color: #D4AF37; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; position:sticky; left:0; ${bgCatRow};">
                     <i class="${cat.icone}" style="margin-right: 8px;"></i> ${cat.titulo}
                 </td>
             </tr>`;
 
-            // Linhas das Ações Operacionais da Categoria
+            // Linhas das Ações Operacionais
             cat.acoes.forEach(acao => {
-                matrixHtml += `<tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
-                    <td style="padding: 10px 16px 10px 28px;">
-                        <strong style="color: var(--text-primary, #ffffff); font-size: 13px;">${acao.label}</strong>
-                        <br>
+                matrixHtml += `<tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="min-width:300px; max-width:300px; padding: 10px 16px 10px 28px; position:sticky; left:0; z-index:1; ${bgStickyRow};">
+                        <strong style="color: var(--text-primary, #ffffff); font-size: 13px; display:block; line-height:1.4;">${acao.label}</strong>
                         <small style="color: var(--text-secondary, #94a3b8); font-size: 11px;">${acao.sublabel}</small>
-                        <span style="font-size: 10px; color: rgba(212, 175, 55, 0.7); font-family: monospace; display: block; margin-top: 2px;">[Chave: ${acao.id}]</span>
+                        <span style="font-size: 10px; color: rgba(212, 175, 55, 0.6); font-family: monospace; display: block; margin-top: 2px;">${acao.id}</span>
                     </td>
-                    
-                    <!-- Coluna Master (Sempre concedida, imutável) -->
-                    <td style="text-align:center; vertical-align: middle;">
+
+                    <!-- Coluna Master (Sempre concedida, imutarável) -->
+                    <td style="text-align:center; vertical-align:middle; min-width:100px;">
                         <input type="checkbox" checked disabled
                                title="Acesso incondicional concedido ao Master"
                                style="accent-color: #D4AF37; transform: scale(1.25); cursor: not-allowed;">
