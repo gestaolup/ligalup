@@ -219,31 +219,45 @@ window.initComprasModule = function(deps) {
     let _itemRowCounter = 0;
 
     function openModalNovoPedido(pedidoId = null) {
-        const DB  = getDB();
-        const overlay = document.getElementById('modal-pedido-compra-overlay');
+        const overlay = document.getElementById('modal-pedido-compra-overlay') || document.getElementById('modal-pedido-compra');
         if (!overlay) return;
 
+        const DB = getDB();
+
         // Reset
-        document.getElementById('modal-pedido-id').value          = pedidoId || '';
-        document.getElementById('modal-pedido-titulo').textContent = pedidoId ? 'Editar Rascunho' : 'Novo Pedido de Compra';
-        document.getElementById('modal-pedido-data-entrega').value = '';
-        document.getElementById('modal-pedido-itens-tbody').innerHTML = '';
-        document.getElementById('modal-pedido-total').textContent  = 'R$ 0,00';
+        const elId = document.getElementById('modal-pedido-id');
+        const elTitulo = document.getElementById('modal-pedido-titulo');
+        const elEntrega = document.getElementById('modal-pedido-data-entrega');
+        const elTbody = document.getElementById('modal-pedido-itens-tbody');
+        const elTotal = document.getElementById('modal-pedido-total');
+        const btnSalvarRasc = document.getElementById('btn-salvar-rascunho');
+        const btnEnviarAprov = document.getElementById('btn-enviar-aprovacao');
+        const btnAddItemRow = document.getElementById('btn-add-item-row');
+
+        if (elId) elId.value = pedidoId || '';
+        if (elTitulo) elTitulo.textContent = pedidoId ? 'Editar Rascunho' : 'Novo Pedido de Compra';
+        if (elEntrega) elEntrega.value = '';
+        if (elTbody) elTbody.innerHTML = '';
+        if (elTotal) elTotal.textContent = 'R$ 0,00';
+        if (btnSalvarRasc) btnSalvarRasc.style.display = '';
+        if (btnEnviarAprov) btnEnviarAprov.style.display = '';
+        if (btnAddItemRow) btnAddItemRow.style.display = '';
         _itemRowCounter = 0;
 
         // Popula fornecedores
         const selForn = document.getElementById('modal-pedido-fornecedor');
-        selForn.innerHTML = '<option value="">Selecione um fornecedor…</option>' +
-            (DB.fornecedores || []).map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+        if (selForn) {
+            selForn.innerHTML = '<option value="">Selecione um fornecedor…</option>' +
+                (DB.fornecedores || []).map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+        }
 
         // Se edição de rascunho, preenche dados existentes
         if (pedidoId) {
             const pedido = (DB.pedidos_compra || []).find(p => p.id === pedidoId);
             if (pedido) {
-                selForn.value = pedido.fornecedor_id || '';
-                if (pedido.data_prevista_entrega) {
-                    document.getElementById('modal-pedido-data-entrega').value =
-                        pedido.data_prevista_entrega.split('T')[0];
+                if (selForn) selForn.value = pedido.fornecedor_id || '';
+                if (pedido.data_prevista_entrega && elEntrega) {
+                    elEntrega.value = pedido.data_prevista_entrega.split('T')[0];
                 }
                 // Carrega itens existentes
                 const itens = (DB.pedidos_compra_itens || []).filter(i => i.pedido_id === pedidoId);
@@ -254,6 +268,8 @@ window.initComprasModule = function(deps) {
         }
 
         overlay.style.display = 'flex';
+        overlay.classList.add('active');
+        overlay.classList.remove('hidden');
     }
 
     function addItemRow(existingItem = null) {
@@ -477,8 +493,12 @@ window.initComprasModule = function(deps) {
     }
 
     function closeModalPedido() {
-        const overlay = document.getElementById('modal-pedido-compra-overlay');
-        if (overlay) overlay.style.display = 'none';
+        const overlay = document.getElementById('modal-pedido-compra-overlay') || document.getElementById('modal-pedido-compra');
+        if (overlay) {
+            overlay.style.display = 'none';
+            overlay.classList.remove('active');
+            overlay.classList.add('hidden');
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -548,11 +568,17 @@ window.initComprasModule = function(deps) {
     function viewPedido(pedidoId) {
         // Abre o modal em modo somente-leitura (botões de ação ocultos)
         openModalNovoPedido(pedidoId);
-        document.getElementById('modal-pedido-titulo').textContent = 'Detalhes do Pedido';
-        document.getElementById('modal-pedido-subtitulo').textContent = 'Visualização somente-leitura';
-        document.getElementById('btn-salvar-rascunho').style.display  = 'none';
-        document.getElementById('btn-enviar-aprovacao').style.display = 'none';
-        document.getElementById('btn-add-item-row').style.display     = 'none';
+        const elTitulo = document.getElementById('modal-pedido-titulo');
+        const elSubtitulo = document.getElementById('modal-pedido-subtitulo');
+        const btnSalvar = document.getElementById('btn-salvar-rascunho');
+        const btnEnviar = document.getElementById('btn-enviar-aprovacao');
+        const btnAddItem = document.getElementById('btn-add-item-row');
+
+        if (elTitulo) elTitulo.textContent = 'Detalhes do Pedido';
+        if (elSubtitulo) elSubtitulo.textContent = 'Visualização somente-leitura';
+        if (btnSalvar) btnSalvar.style.display = 'none';
+        if (btnEnviar) btnEnviar.style.display = 'none';
+        if (btnAddItem) btnAddItem.style.display = 'none';
     }
 
     // -----------------------------------------------------------------------
@@ -566,10 +592,13 @@ window.initComprasModule = function(deps) {
         const pedido  = (DB.pedidos_compra || []).find(p => p.id === pedidoId);
         const forn    = pedido ? (DB.fornecedores || []).find(f => f.id === pedido.fornecedor_id) : null;
 
-        document.getElementById('modal-receb-pedido-id').value    = pedidoId;
-        document.getElementById('modal-receb-titulo').textContent = `Recebimento — ${forn ? forn.nome : 'Pedido'}`;
-        document.getElementById('modal-receb-subtitulo').textContent =
-            `Status: ${pedido ? pedido.status : '—'} | Previsão: ${pedido ? formatDate(pedido.data_prevista_entrega) : '—'}`;
+        const elPedId = document.getElementById('modal-receb-pedido-id');
+        const elTitulo = document.getElementById('modal-receb-titulo');
+        const elSubtitulo = document.getElementById('modal-receb-subtitulo');
+
+        if (elPedId) elPedId.value = pedidoId;
+        if (elTitulo) elTitulo.textContent = `Recebimento — ${forn ? forn.nome : 'Pedido'}`;
+        if (elSubtitulo) elSubtitulo.textContent = `Status: ${pedido ? pedido.status : '—'} | Previsão: ${pedido ? formatDate(pedido.data_prevista_entrega) : '—'}`;
 
         // Carrega itens do pedido
         const itens = (DB.pedidos_compra_itens || []).filter(i => i.pedido_id === pedidoId);
@@ -601,10 +630,12 @@ window.initComprasModule = function(deps) {
             }).join('');
         }
 
-        // Carrega histórico de recebimentos (do DB em memória ou via REST)
+        // Carrega histórico de recebimentos
         await renderHistoricoRecebimentos(pedidoId, itens);
 
         overlay.style.display = 'flex';
+        overlay.classList.add('active');
+        overlay.classList.remove('hidden');
     }
 
     async function renderHistoricoRecebimentos(pedidoId, itens) {
@@ -617,11 +648,9 @@ window.initComprasModule = function(deps) {
             return;
         }
 
-        // Busca log_recebimentos via REST (não cached no DB em memória por padrão)
         const DB = getDB();
         let logs = (DB.log_recebimentos || []).filter(l => itemIds.includes(l.item_id));
 
-        // Se não há dados no cache, busca direto via REST
         if (logs.length === 0) {
             const { data } = await supabase
                 .from('log_recebimentos')
@@ -659,7 +688,6 @@ window.initComprasModule = function(deps) {
                         const user = usuarios.find(u => u.id === log.recebedor_id);
                         const nomeProd = [prod?.nome, vari ? `(${vari.tamanho})` : ''].filter(Boolean).join(' ');
 
-                        // SLA: compara data prevista com data real
                         let slaHtml = '—';
                         if (log.data_prevista_original && log.data_recebimento_real) {
                             const prev = new Date(log.data_prevista_original);
@@ -742,18 +770,25 @@ window.initComprasModule = function(deps) {
 
     function closeModalRecebimento() {
         const overlay = document.getElementById('modal-recebimento-overlay');
-        if (overlay) overlay.style.display = 'none';
+        if (overlay) {
+            overlay.style.display = 'none';
+            overlay.classList.remove('active');
+            overlay.classList.add('hidden');
+        }
     }
 
     // -----------------------------------------------------------------------
     // EVENT LISTENERS
     // -----------------------------------------------------------------------
     function bindEvents() {
-        // Botão Novo Pedido
-        const btnNovo = document.getElementById('btn-novo-pedido-compra');
-        if (btnNovo) {
-            btnNovo.addEventListener('click', () => openModalNovoPedido());
-        }
+        // Botão Novo Pedido (suporta múltiplos seletores)
+        const btnNovoList = document.querySelectorAll('#btn-novo-pedido-compra, #btn-novo-pedido, [data-btn-novo-pedido]');
+        btnNovoList.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                openModalNovoPedido();
+            });
+        });
 
         // Botão Adicionar Item no Modal
         const btnAddItem = document.getElementById('btn-add-item-row');
@@ -770,7 +805,7 @@ window.initComprasModule = function(deps) {
         // Fechar Modal Pedido
         const btnClosePedido = document.getElementById('btn-close-modal-pedido');
         if (btnClosePedido) btnClosePedido.addEventListener('click', closeModalPedido);
-        const overlayPedido  = document.getElementById('modal-pedido-compra-overlay');
+        const overlayPedido  = document.getElementById('modal-pedido-compra-overlay') || document.getElementById('modal-pedido-compra');
         if (overlayPedido) {
             overlayPedido.addEventListener('click', e => {
                 if (e.target === overlayPedido) closeModalPedido();
@@ -795,8 +830,11 @@ window.initComprasModule = function(deps) {
     }
 
     // -----------------------------------------------------------------------
-    // NAMESPACE PÚBLICO (referenciado pelos onclick embutidos no HTML gerado)
+    // EXPOSIÇÃO GLOBAL (window.openModalNovoPedido e window.Compras)
     // -----------------------------------------------------------------------
+    window.openModalNovoPedido  = openModalNovoPedido;
+    window.openModalRecebimento = openModalRecebimento;
+
     window.Compras = {
         openModalNovoPedido,
         openModalRecebimento,
@@ -812,5 +850,6 @@ window.initComprasModule = function(deps) {
     bindEvents();
     renderPedidosCompra();
 
-    console.log('[Compras] Módulo Supply Chain v1.2 inicializado.');
+    console.log('[Compras] Módulo Supply Chain v1.2 inicializado com sucesso.');
 };
+

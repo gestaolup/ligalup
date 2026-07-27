@@ -109,10 +109,13 @@ test.describe('Testes de Chat e Sincronização Realtime (WebSockets)', () => {
     await page.click(SELECTORS.loginButton);
 
     // Clica no menu de comunicação (Chat)
+    await page.waitForSelector(SELECTORS.navComunicacao, { state: 'visible' });
     await page.click(SELECTORS.navComunicacao);
     
     // Seleciona a conversa "Geral LUP" no menu esquerdo
+    await page.waitForSelector(SELECTORS.conversationItem, { state: 'visible' });
     await page.click(SELECTORS.conversationItem);
+
   });
 
   test('01 — Envio de mensagem dispara requisição POST e aguarda eco do WebSocket para renderizar', async ({ page }) => {

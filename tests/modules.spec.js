@@ -202,10 +202,13 @@ test.describe('Testes de Regressão de Módulos Auxiliares', () => {
     await expect(userRows.nth(1)).toContainText('Renata LUP');
 
     // 2. Teste de Sanidade: Módulo Jurídico & GED
+    await page.waitForSelector(SELECTORS.navLegal, { state: 'visible' });
     await page.click(SELECTORS.navLegal);
     
     // Acessa sub-aba GED — Documentos
+    await page.waitForSelector('.tab-btn[data-tab="jur-tab-ged"]', { state: 'visible' });
     await page.click('.tab-btn[data-tab="jur-tab-ged"]');
+
 
     // Verifica se os documentos do GED estão listados
     const docRows = page.locator('#ged-table tbody tr');
