@@ -317,12 +317,18 @@ window.ConfigModule = (function() {
             titulo: 'Produtos & Estoque (Loja)',
             icone: 'fas fa-box-open',
             acoes: [
-                { id: 'mod-produtos', label: 'Visualizar Produtos & Estoque', sublabel: 'Acesso ao catálogo de produtos e unidades em estoque' },
-                { id: 'mod-produtos:create', label: 'Cadastrar Produtos', sublabel: 'Adicionar novos itens à loja oficial' },
-                { id: 'gerenciar_estoque', label: 'Gerenciar Estoque & Variantes', sublabel: 'Ajustar estoque por variante (tamanhos P/M/G)' },
-                { id: 'mod-produtos:delete', label: 'Excluir Produtos', sublabel: 'Remover itens do catálogo e do estoque' }
+                { id: 'mod-produtos',             label: 'Visualizar Produtos & Estoque',  sublabel: 'Acesso ao catálogo de produtos e unidades em estoque' },
+                { id: 'mod-produtos:create',       label: 'Cadastrar Produtos',             sublabel: 'Adicionar novos itens à loja oficial' },
+                { id: 'gerenciar_estoque',         label: 'Gerenciar Estoque & Variantes',  sublabel: 'Ajustar estoque por variante (tamanhos P/M/G)' },
+                { id: 'mod-produtos:delete',       label: 'Excluir Produtos',              sublabel: 'Remover itens do catálogo e do estoque' },
+                // Sprint 4 — Supply Chain: ações granulares de Pedidos de Compra
+                { id: 'criar_pedido_compra',       label: 'Criar Pedidos de Compra',       sublabel: 'Abrir novos pedidos de compra para fornecedores (Rascunho / Aguardando Aprovação)' },
+                { id: 'aprovar_pedido_compra',     label: 'Aprovar Pedidos de Compra',     sublabel: 'Autorizar orçamento de compra — Alçada Tesouraria / Executivos' },
+                { id: 'receber_pedido_compra',     label: 'Registrar Entrega / Baixa',     sublabel: 'Confirmar recebimento parcial ou total de itens e atualizar estoque' },
+                { id: 'cancelar_pedido_compra',    label: 'Cancelar Pedidos de Compra',    sublabel: 'Cancelar pedidos em Rascunho ou Aguardando Aprovação' }
             ]
         },
+
         {
             modulo: 'mod-esportes',
             titulo: 'Esportes & Atletas',

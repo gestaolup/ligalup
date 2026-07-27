@@ -82,8 +82,14 @@ window.initUserAccess = function(deps) {
                 if (moduleId === 'mod-legal' && p.acao_sistema === 'editar_documentos') return true;
                 if (moduleId === 'mod-produtos' && p.acao_sistema === 'gerenciar_estoque') return true;
                 if (moduleId === 'mod-acessos' && p.acao_sistema === 'gerenciar_usuarios') return true;
+                // Sprint 4 — Supply Chain: correlações de Pedidos de Compra
+                if (moduleId === 'mod-produtos' && p.acao_sistema === 'criar_pedido_compra') return true;
+                if (moduleId === 'mod-produtos' && p.acao_sistema === 'aprovar_pedido_compra') return true;
+                if (moduleId === 'mod-produtos' && p.acao_sistema === 'receber_pedido_compra') return true;
+                if (moduleId === 'mod-produtos' && p.acao_sistema === 'cancelar_pedido_compra') return true;
 
                 return false;
+
             });
         }
 

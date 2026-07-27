@@ -829,7 +829,10 @@ document.addEventListener('DOMContentLoaded', () => {
             'produtos', 'produto_variantes', 'calendario_editorial', 'cronograma_postagens',
             'escalacoes', 'participantes_evento', 'lancamentos_financeiros',
             'parceiros_patrocinadores', 'documentos_contratos', 'logs_notificacoes',
-            'fornecedores', 'pedidos_compra', 'chat_conversations', 'chat_participants', 'chat_messages', 'diretorias',
+            'fornecedores',
+            // Sprint 4 — Supply Chain: tabelas do módulo de Pedidos de Compra
+            'pedidos_compra', 'pedidos_compra_itens', 'log_recebimentos',
+            'chat_conversations', 'chat_participants', 'chat_messages', 'diretorias',
             'usuario_diretorias', 'permissoes', 'configuracoes_globais', 'notificacoes_config'
         ];
 
@@ -990,6 +993,17 @@ document.addEventListener('DOMContentLoaded', () => {
         logSQL,
         refreshAllUI
     });
+
+    // --- Inicializa o módulo de Compras / Supply Chain (compras.js — Sprint 4) ---
+    if (window.initComprasModule) {
+        window.initComprasModule({
+            supabase,
+            getDB:          () => DB,
+            getCurrentUser: () => currentUser,
+            logSQL,
+            refreshAllUI
+        });
+    }
 
 
 
