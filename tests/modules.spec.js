@@ -55,7 +55,9 @@ const MOCK_MODULES_DATA = {
   participantes_evento: [],
   logs_notificacoes: [],
   fornecedores: [],
-  pedidos_compra: []
+  pedidos_compra: [],
+  pedidos_compra_itens: [],
+  log_recebimentos: []
 };
 
 // Seletores comuns e de navegação dos módulos

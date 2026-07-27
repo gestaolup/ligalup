@@ -54,5 +54,7 @@
   "documentos_contratos": [],
   "logs_notificacoes": [],
   "fornecedores": [],
-  "pedidos_compra": []
+  "pedidos_compra": [],
+  "pedidos_compra_itens": [],
+  "log_recebimentos": []
 }

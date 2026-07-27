@@ -1,1 +1,0 @@
-{"access_token":"mock-jwt-token-abcdef","token_type":"bearer","expires_in":3600,"refresh_token":"mock-refresh-token-123456","user":{"id":"test-user-presidencia-001","email":"presidencia@atleticalup.com.br","email_confirmed_at":"2026-07-27T14:36:32.281Z"}}
