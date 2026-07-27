@@ -107,6 +107,7 @@ test.describe('Testes de Chat e Sincronização Realtime (WebSockets)', () => {
     await page.fill(SELECTORS.emailInput, 'presidencia@atleticalup.com.br');
     await page.fill(SELECTORS.passwordInput, 'lup123_strategy');
     await page.click(SELECTORS.loginButton);
+    await page.waitForSelector('#app-wrapper', { state: 'visible' });
 
     // Clica no menu de comunicação (Chat)
     await page.waitForSelector(SELECTORS.navComunicacao, { state: 'visible' });
@@ -115,6 +116,7 @@ test.describe('Testes de Chat e Sincronização Realtime (WebSockets)', () => {
     // Seleciona a conversa "Geral LUP" no menu esquerdo
     await page.waitForSelector(SELECTORS.conversationItem, { state: 'visible' });
     await page.click(SELECTORS.conversationItem);
+
 
   });
 

@@ -143,6 +143,7 @@ test.describe('Testes de Regressão de Módulos Auxiliares', () => {
     await page.fill(SELECTORS.emailInput, 'presidencia@atleticalup.com.br');
     await page.fill(SELECTORS.passwordInput, 'lup123_strategy');
     await page.click(SELECTORS.loginButton);
+    await page.waitForSelector('#app-wrapper', { state: 'visible' });
     // Sprint 2: syncDBFromSupabase agora carrega mais tabelas (usuario_diretorias, permissoes, etc.)
     // Aumentamos o timeout do login de 5s para 15s para absorver o cold start do Chromium.
     await expect(page.locator('#app-wrapper')).toBeVisible({ timeout: 15000 });
