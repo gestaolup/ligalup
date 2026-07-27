@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LIGA-LUP — Manual de Arquitetura & Engenharia Reversa</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Mermaid CDN for Dynamic Diagram Rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        :root {
+            --bg-body: #09090b;
+            --bg-card: #13131f;
+            --bg-sidebar: #0d0d14;
+            --primary: #ea580c;
+            --primary-glow: rgba(234, 88, 12, 0.3);
+            --gold: #D4AF37;
+            --gold-glow: rgba(212, 175, 55, 0.25);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --code-bg: #090910;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            display: flex;
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        /* Sidebar Navigation */
+        #doc-sidebar {
+            width: 310px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            height: 100vh;
+            position: sticky;
+            top: 0;
+            display: flex;
+            flex-direction: column;
+            padding: 24px 16px;
+            overflow-y: auto;
+            z-index: 100;
+        }
+
+        .sidebar-header {
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar-header h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 20px;
+            color: var(--gold);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sidebar-header span {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: block;
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .search-box {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .search-box input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-color);
+            padding: 10px 12px 10px 36px;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 13px;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .search-box input:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 10px var(--gold-glow);
+        }
+
+        .search-box i {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .nav-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .nav-list a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 13px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .nav-list a:hover, .nav-list a.active {
+            color: #fff;
+            background: rgba(212, 175, 55, 0.12);
+            border-left: 3px solid var(--gold);
+        }
+
+        .nav-list a i {
+            width: 18px;
+            color: var(--gold);
+        }
+
+        /* Main Content Container */
+        #doc-content {
+            flex: 1;
+            padding: 40px 60px;
+            max-width: 1300px;
+            overflow-y: auto;
+        }
+
+        .section-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 32px;
+            margin-bottom: 32px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .section-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 24px;
+            color: var(--gold);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 12px;
+        }
+
+        p {
+            margin-bottom: 16px;
+            color: #cbd5e1;
+            font-size: 14px;
+        }
+
+        /* Badges & Tables */
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-gold { background: rgba(212, 175, 55, 0.2); color: var(--gold); border: 1px solid rgba(212, 175, 55, 0.4); }
+        .badge-orange { background: rgba(234, 88, 12, 0.2); color: var(--primary); border: 1px solid rgba(234, 88, 12, 0.4); }
+        .badge-blue { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
+        .badge-green { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+            margin-bottom: 24px;
+            font-size: 13px;
+        }
+
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background: rgba(255,255,255,0.03);
+            color: var(--gold);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 12px;
+        }
+
+        tr:hover td {
+            background: rgba(255,255,255,0.015);
+        }
+
+        /* Code Blocks */
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            font-family: 'Fira Code', monospace;
+            font-size: 12px;
+            color: #e2e8f0;
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+
+        code {
+            font-family: 'Fira Code', monospace;
+            background: rgba(255,255,255,0.06);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: var(--gold);
+            font-size: 12px;
+        }
+
+        /* Collapsible Accordion */
+        details {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            padding: 12px 16px;
+        }
+
+        summary {
+            font-weight: 600;
+            color: var(--text-main);
+            cursor: pointer;
+            outline: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        summary::after {
+            content: '\f107';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            color: var(--gold);
+        }
+
+        details[open] summary::after {
+            content: '\f106';
+        }
+
+        details[open] {
+            border-color: rgba(212, 175, 55, 0.3);
+            background: rgba(255,255,255,0.03);
+        }
+
+        .details-content {
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        /* Mermaid Wrapper */
+        .mermaid-container {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Highlight box */
+        .alert-box {
+            background: rgba(212, 175, 55, 0.08);
+            border-left: 4px solid var(--gold);
+            padding: 16px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+
+        .alert-title {
+            font-weight: 700;
+            color: var(--gold);
+            margin-bottom: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Menu -->
+    <aside id="doc-sidebar">
+        <div class="sidebar-header">
+            <h1><i class="fas fa-shield-halved"></i> LIGA-LUP</h1>
+            <span>Manual de Arquitetura & Engenharia</span>
+        </div>
+
+        <div class="search-box">
+            <i class="fas fa-search"></i>
+            <input type="text" id="searchInput" placeholder="Pesquisar módulo, arquivo ou API..." onkeyup="filterDocs()">
+        </div>
+
+        <ul class="nav-list" id="navList">
+            <li><a href="#visao-geral" class="active"><i class="fas fa-compass"></i> 1. Visão Geral</a></li>
+            <li><a href="#estrutura-pastas"><i class="fas fa-folder-tree"></i> 2. Estrutura de Pastas</a></li>
+            <li><a href="#fluxo-aplicacao"><i class="fas fa-diagram-project"></i> 3. Fluxo da Aplicação</a></li>
+            <li><a href="#mapa-componentes"><i class="fas fa-cubes"></i> 4. Mapa de Componentes</a></li>
+            <li><a href="#mapa-rotas"><i class="fas fa-route"></i> 5. Mapa de Rotas</a></li>
+            <li><a href="#banco-dados"><i class="fas fa-database"></i> 6. Banco de Dados & SQL</a></li>
+            <li><a href="#apis-endpoints"><i class="fas fa-network-wired"></i> 7. APIs & Integrações</a></li>
+            <li><a href="#estado-global"><i class="fas fa-memory"></i> 8. Estado Global & RBAC</a></li>
+            <li><a href="#arquivos-criticos"><i class="fas fa-file-code"></i> 9. Arquivos Críticos</a></li>
+            <li><a href="#dependencias-config"><i class="fas fa-sliders"></i> 10. Dependências & Config</a></li>
+            <li><a href="#problemas-melhorias"><i class="fas fa-bug"></i> 11. Débito & Melhorias</a></li>
+        </ul>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="doc-content">
+
+        <!-- 1. Visão Geral -->
+        <section id="visao-geral" class="section-card searchable">
+            <div class="section-title">
+                <i class="fas fa-compass"></i> 1. Visão Geral do Sistema
+            </div>
+            <p>
+                O <strong>LIGA-LUP</strong> é uma plataforma SaaS estratégica desenvolvida sob medida para a gestão integral de <strong>Atléticas Universitárias</strong>. O sistema unifica em uma única interface a gestão financeira (caixa e DRE), logística e orçamento de eventos, loja oficial e controle de estoque por tamanho, departamento esportivo (atletas e modalidades), mídias sociais/calendário de marketing, repositório de documentos legais (GED), comunicação realtime e matriz dinâmica de permissões de acesso (RBAC).
+            </p>
+
+            <div class="alert-box">
+                <div class="alert-title"><i class="fas fa-lightbulb"></i> Arquitetura de Alto Nível</div>
+                O sistema é uma <strong>Single Page Application (SPA) desacoplada</strong> construída em Vanilla JavaScript nativo (ES6+ Modules injetados via escopo global `window`), CSS3 Vanilla responsivo e HTML5 sem frameworks pesados (React/Angular/Vue). O backend opera como <strong>Backend-as-a-Service (BaaS) no Supabase</strong>, tirando proveito de banco PostgreSQL 15, autenticação via JWT, chamadas REST PostgREST, WebSockets Realtime e segurança rigorosa aplicada por Triggers PL/pgSQL e RLS.
+            </div>
+
+            <table class="searchable">
+                <thead>
+                    <tr>
+                        <th>Camada</th>
+                        <th>Tecnologia / Padrão</th>
+                        <th>Papel na Aplicação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="badge badge-gold">Front-End SPA</span></td>
+                        <td>Vanilla JS (ES6+), HTML5, CSS3 Custom Properties</td>
+                        <td>Interface rápida sem tempo de compilação, com renderização reativa client-side.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-orange">Backend BaaS</span></td>
+                        <td>Supabase (PostgreSQL 15, Auth, Realtime, REST)</td>
+                        <td>Persistência de dados, autenticação de sessão e canal de comunicação em tempo real.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-blue">Segurança & RBAC</span></td>
+                        <td>Triggers PL/pgSQL + Matrix 2D Dinâmica no JS</td>
+                        <td>Verificação de autorização com bypass executivo e validação em banco nas mutações críticas.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-green">Hospedagem & E2E</span></td>
+                        <td>Vercel Static Host + Microsoft Playwright</td>
+                        <td>Deploy contínuo sem servidor e suíte completa de regressão automatizada (13 testes E2E).</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- 2. Estrutura de Pastas -->
+        <section id="estrutura-pastas" class="section-card searchable">
+            <div class="section-title">
+                <i class="fas fa-folder-tree"></i> 2. Estrutura de Pastas & Mapeamento de Arquivos
+            </div>
+            <p>Abaixo está a árvore física completa do repositório com o papel de cada pasta e arquivo chave:</p>
+
+            <pre>
+atletica-lup/
+├── assets/                          # Recursos visuais estáticos (Logotipos e avatares)
+│   ├── default-avatar.png
+│   └── logo.png
+├── database/                        # Scripts DDL, DML e Triggers no PostgreSQL
+│   ├── schema.sql                   # Definição de tabelas relacionais do Supabase
+│   ├── triggers.sql                 # Triggers base de regras de negócio PL/pgSQL
+│   ├── migracao_rbac_dinamico.sql   # Migração da tabela usuario_diretorias N:M
+│   └── sprint3_triggers.sql         # Triggers de segurança dinâmicas relacionais
+├── tests/                           # Suíte de Testes Automatizados E2E Playwright
+│   ├── auth.spec.js                 # Testes de login e falhas de credenciais
+│   ├── chat.spec.js                 # Testes de envio e recepção de mensagens em tempo real
+│   ├── modules.spec.js              # Testes de regressão dos 9 módulos funcionais
+│   ├── smoke.spec.js                # Sanidade de carregamento da SPA
+│   └── sync.spec.js                 # Validação da hidratação do window.DB
+├── app.js                           # Orquestrador da SPA, window.DB e window.DB_Engine
+├── auth.js                          # Login Supabase Auth e hidratação de sessão
+├── user_access.js                   # Motor RBAC (canWrite, applyNavPermissions, isExecutiveAdmin)
+├── config.js                        # Matriz 2D Sticky do Master e 29 Ações Granulares
+├── finance.js                       # Módulo de Tesouraria, Livro Caixa e Conciliação
+├── chat.js                          # Comunicação Realtime via WebSockets Supabase
+├── ged_docs.js                      # Repositório de Contratos e Alerta de Vencimento
+├── env.js                           # Variáveis públicas de ambiente (URL e Key Supabase)
+├── index.html                       # Shell principal da aplicação SPA com 11 seções
+├── style.css                        # Folha de estilos unificada com design system
+├── vercel.json                      # Configuração de rotas estáticas na Vercel
+├── package.json                     # Scripts npm e devDependencies do Playwright
+└── playwright.config.js             # Parâmetros de execução dos testes E2E
+            </pre>
+        </section>
+
+        <!-- 3. Fluxo da Aplicação -->
+        <section id="fluxo-aplicacao" class="section-card searchable">
+            <div class="section-title">
+                <i class="fas fa-diagram-project"></i> 3. Fluxo Completo de Execução da Aplicação
+            </div>
+            <p>O ciclo de vida de uma requisição do usuário na plataforma segue a sequência descrita no diagrama de sequência abaixo:</p>
+
+            <div class="mermaid-container">
+                <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    actor U as Usuário / Diretor
+    participant SPA as index.html / app.js
+    participant Auth as auth.js (Supabase Auth)
+    participant DB as State (window.DB)
+    participant REST as Supabase REST API
+    participant PG as PostgreSQL Triggers
+
+    U->>SPA: Acessa a URL da plataforma
+    SPA->>Auth: Inicializa sessão (getSession)
+    alt Não autenticado
+        SPA-->>U: Exibe tela de Login (#login-screen)
+        U->>Auth: Digita e-mail e senha + Clique em Entrar
+        Auth->>REST: POST /auth/v1/token (signInWithPassword)
+        REST-->>Auth: Retorna JWT + User UUID
+    end
+    Auth->>REST: Busca registro em public.usuarios + usuario_diretorias
+    REST-->>Auth: Retorna usuário e diretorias vinculadas (diretorias_ids[])
+    Auth->>SPA: Define window.currentUser e chama onLogin()
+    SPA->>REST: Executa window.syncDBFromSupabase() [Fetch paralelo de tabelas]
+    REST-->>SPA: Retorna tabelas em JSON
+    SPA->>DB: Hydrata estado global window.DB
+    SPA->>SPA: Invocação dos inicializadores (initUserAccess, initFinance, etc.)
+    SPA->>SPA: Executa applyNavPermissions() e applyReadonlyMode()
+    SPA-->>U: Exibe Painel Principal (#app-wrapper) com abas autorizadas
+
+    U->>SPA: Executa Ação Crítica (ex: Aprovar Orçamento de Evento)
+    SPA->>SPA: Checagem local canWrite('aprovar_evento')
+    alt Bloqueado no Client-Side
+        SPA-->>U: Exibe banner "Modo Somente Leitura" ou impede ação
+    else Permitido no Client-Side
+        SPA->>REST: UPDATE public.eventos SET status_aprovacao = 'Aprovado'
+        REST->>PG: Dispara Trigger fn_trg_verificar_aprovacao_evento()
+        alt Usuário não autorizado no Banco
+            PG-->>REST: RAISE EXCEPTION 'Erro 403: Usuário sem permissão'
+            REST-->>SPA: Retorna erro 42501 (Forbidden)
+            SPA-->>U: Exibe modal amigável de Alerta de Segurança
+        else Autorizado no Banco
+            PG->>PG: Atualiza status e gera débito automático em lancamentos_financeiros
+            PG-->>REST: Sucesso 200 OK
+            REST-->>SPA: Confirmação da transação
+            SPA->>DB: Atualiza registro em window.DB e re-renderiza UI
+            SPA-->>U: Exibe notificação de sucesso
+        end
+    end
+                </pre>
+            </div>
+        </section>
+
+        <!-- 4. Mapa de Componentes -->
+        <section id="mapa-componentes" class="section-card searchable">
+            <div class="section-title">
+                <i class="fas fa-cubes"></i> 4. Mapa de Componentes & Hierarquia de Injeção
+            </div>
+            <p>Os módulos operam com um padrão de **Injeção de Dependências por Contrato**. O arquivo <code>app.js</code> cria e fornece os utilitários de estado para os submódulos:</p>
+
+            <div class="mermaid-container">
+                <pre class="mermaid">
+graph TD
+    APP[app.js - Bootstrapper] -->|Injeta supabase, getDB, DB_Engine| AUTH[auth.js - Autenticação]
+    APP -->|Injeta getDB, getCurrentUser, refreshUI| ACCESS[user_access.js - RBAC & Usuários]
+    APP -->|Injeta DB_Engine, canWrite| FIN[finance.js - Tesouraria]
+    APP -->|Injeta supabaseClient, currentUser| CHAT[chat.js - Communication Realtime]
+    APP -->|Injeta getDB, canWrite| GED[ged_docs.js - Repositório GED]
+    APP -->|Injeta DB_Engine, localPermissoes| CONF[config.js - Master Matrix]
+
+    ACCESS -->|Injeta função global| IS_EXEC[window.isExecutiveAdmin]
+    ACCESS -->|Injeta função global| CAN_WRITE[window.canWrite]
+    CONF -->|Atualiza dinamicamente| DB_PERM[window.DB.permissoes]
+    CAN_WRITE -->|Consulta em memória| DB_PERM
+                </pre>
+            </div>
+        </section>
+
+        <!-- 5. Mapa de Rotas -->
+        <section id="mapa-rotas" class="section-card searchable">
+            <div class="section-title">
+                <i class="fas fa-route"></i> 5. Mapa de Rotas & Módulos da SPA
+            </div>
+            <p>A aplicação utiliza navegação por troca de visibilidade de seções (`.module-section`) via atributo `data-target`. Todas as rotas administrativas exigem autenticação ativa:</p>
+
+            <table class="searchable">
+                <thead>
+                    <tr>
+                        <th>Identificador (`data-target`)</th>
+                        <th>Nome da Seção</th>
+                        <th>Proteção de Acesso</th>
+                        <th>Regra de Autorização (`user_access.js`)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>mod-dashboard</code></td>
+                        <td>Dashboard Executivo</td>
+                        <td><span class="badge badge-green">Requer Autenticação</span></td>
+                        <td>Visível por padrão para todos os membros logados.</td>
+                    </tr>
+                    <tr>
+                        <td><code>mod-acessos</code></td>
+                        <td>Gestão de Acessos</td>
+                        <td><span class="badge badge-orange">Exclusivo Executivo</span></td>
+                        <td>Blindado por <code>isExecutiveAdmin(user)</code> (Master, Presidente, Vice).</td>
+                    </tr>
+                    <tr>
+                        <td><code>mod-eventos</code></td>
+                        <td>Diretoria de Eventos</td>
+                        <td><span class="badge badge-gold">Dinamico RBAC</span></td>
+                        <td>Liberado se <code>canWrite('mod-eventos')</code> for verdadeiro no banco.</td>
+                    </tr>
+                    <tr>
+                        <td><code>mod-marketing</code></td>
+                        <td>Diretoria de Marketing</td>
+                        <td><span class="badge badge-gold">Dinamico RBAC</span></td>
+                        <td>Liberado se <code>canWrite('mod-marketing')</code> for verdadeiro no banco.</td>
+                    </tr>
+                    <tr>
+                        <td><code>mod-produtos</code></td>
+                        <td>Produtos & Estoque</td>
+                        <td><span class="badge badge-gold">Dinamico RBAC</span></td>
+                        <td>Liberado se <code>canWrite('mod-produtos')</code> for verdadeiro no banco.</td>
+                    </tr>
+                    <tr>
+                        <td><code>mod-esportes</code></td>
+                        <td>Esportes & Atletas</td>
+                        <td><span class="badge badge-gold">Dinamico RBAC</span></td>
+                        <td>Liberado se <code>canWrite('mod-esportes')</code> for verdadeiro no banco.</td>
+                    </tr>
+                    <tr>
+                        <td><code>mod-financeiro</code></td>
+                        <td>Tesouraria & Caixa</td>
+                        <td><span class="badge badge-gold">Dinamico RBAC</span></td>
+                        <td>Liberado se <code>canWrite('mod-financeiro')</code> for verdadeiro no banco.</td>
+                    </tr>
+                    <tr>
+                        <td><code>mod-parcerias</code></td>
+                        <td>Diretoria de Parcerias</td>
+                        <td><span class="badge badge-gold">Dinamico RBAC</span></td>
+                        <td>Liberado se <code>canWrite('mod-parcerias')</code> for verdadeiro no banco.</td>
+                    </tr>
+                    <tr>
+                        <td><code>mod-legal</code></td>
+                        <td>Jurídico & GED</td>
+                        <td><span class="badge badge-gold">Dinamico RBAC</span></td>
+                        <td>Liberado se <code>canWrite('mod-legal')</code> for verdadeiro no banco.</td>
+                    </tr>
+                    <tr>
+                        <td><code>mod-comunicacao</code></td>
+                        <td>Comunicação Interna</td>
+                        <td><span class="badge badge-green">Requer Autenticação</span></td>
+                        <td>Canal de avisos e chat realtime para a diretoria.</td>
+                    </tr>
+                    <tr>
+                        <td><code>mod-master-config</code></td>
+                        <td>Configurações Globais</td>
+                        <td><span class="badge badge-orange">Exclusivo Executivo</span></td>
+                        <td>Blindado por <code>isExecutiveAdmin(user)</code> (Matriz de Permissões Master).</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- 6. Banco de Dados & SQL -->
+        <section id="banco-dados" class="section-card searchable">
+            <div class="section-title">
+                <i class="fas fa-database"></i> 6. Modelo de Banco de Dados & Triggers PostgreSQL
+            </div>
+            <p>O banco de dados relacional é hospedado no Supabase (PostgreSQL 15). O diagrama ER simplificado e as tabelas principais estão detalhados abaixo:</p>
+
+            <details>
+                <summary>Ver Estrutura das Tabelas Relacionais (13 Tabelas)</summary>
+                <div class="details-content">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Tabela</th>
+                                <th>Chave Primária</th>
+                                <th>Chaves Estrangeiras (FK)</th>
+                                <th>Descrição & Propósito</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>usuarios</code></td>
+                                <td><code>id</code> (TEXT/UUID)</td>
+                                <td><code>diretoria_id -> diretorias.id</code></td>
+                                <td>Membros cadastrados na Atlética e vínculo de diretoria primária.</td>
+                            </tr>
+                            <tr>
+                                <td><code>diretorias</code></td>
+                                <td><code>id</code> (UUID)</td>
+                                <td>-</td>
+                                <td>Departamentos organizacionais da Atlética (Tesouraria, Marketing, etc.).</td>
+                            </tr>
+                            <tr>
+                                <td><code>usuario_diretorias</code></td>
+                                <td><code>id</code> (UUID)</td>
+                                <td><code>usuario_id -> usuarios.id</code>, <code>diretoria_id -> diretorias.id</code></td>
+                                <td>Junção N:M permitindo acúmulo de diretorias por usuário.</td>
+                            </tr>
+                            <tr>
+                                <td><code>permissoes</code></td>
+                                <td><code>id</code> (UUID)</td>
+                                <td><code>diretoria_id -> diretorias.id</code></td>
+                                <td>Matriz dinâmica de autorização de ações granulares por diretoria.</td>
+                            </tr>
+                            <tr>
+                                <td><code>eventos</code></td>
+                                <td><code>id</code> (UUID)</td>
+                                <td>-</td>
+                                <td>Eventos, festas e jogos com controle de status de aprovação de orçamento.</td>
+                            </tr>
+                            <tr>
+                                <td><code>lancamentos_financeiros</code></td>
+                                <td><code>id</code> (UUID)</td>
+                                <td><code>evento_id -> eventos.id</code></td>
+                                <td>Livro caixa com entradas, saídas e flag de conciliação bancária.</td>
+                            </tr>
+                            <tr>
+                                <td><code>atletas</code></td>
+                                <td><code>id</code> (UUID)</td>
+                                <td>-</td>
+                                <td>Atletas inscritos e status de validação de atestado médico/acadêmico.</td>
+                            </tr>
+                            <tr>
+                                <td><code>documentos_contratos</code></td>
+                                <td><code>id</code> (UUID)</td>
+                                <td><code>parceiro_id -> parceiros_patrocinadores.id</code></td>
+                                <td>Repositório GED de contratos e controle de vigência.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+
+            <details>
+                <summary>Ver Triggers de Segurança PL/pgSQL (`database/sprint3_triggers.sql`)</summary>
+                <div class="details-content">
+                    <p>As modificações críticas são protegidas no banco de dados por triggers PL/pgSQL que realizam consultas relacionais e executam o bypass executivo:</p>
+                    <pre>
+-- Trigger de Aprovação de Orçamento de Eventos
+CREATE OR REPLACE FUNCTION fn_trg_verificar_aprovacao_evento()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_user_cargo tipo_cargo;
+    v_user_diretoria TEXT;
+    v_user_id TEXT;
+    v_has_permission BOOLEAN := FALSE;
+BEGIN
+    v_user_id := COALESCE(NULLIF(auth.uid()::text, ''), NULLIF(current_setting('app.current_user_id', true), ''));
+
+    IF NEW.status_aprovacao = 'Aprovado' AND OLD.status_aprovacao = 'Aguardando Tesouraria' THEN
+        SELECT u.cargo, d.nome INTO v_user_cargo, v_user_diretoria 
+        FROM public.usuarios u LEFT JOIN public.diretorias d ON u.diretoria_id = d.id
+        WHERE u.id::text = v_user_id AND u.status = TRUE;
+
+        -- Bypass Executivo (Master, Presidente, Vice)
+        IF (v_user_cargo IN ('Master', 'Presidente') OR v_user_diretoria IN ('Presidência', 'Vice-Presidência')) THEN
+            v_has_permission := TRUE;
+        ELSE
+            -- Consulta Relacional Dinâmica (Primária + Secundárias)
+            SELECT EXISTS (
+                SELECT 1 FROM public.permissoes p
+                WHERE p.concedida = TRUE AND p.acao_sistema IN ('aprovar_evento', 'mod-financeiro', 'mod-eventos')
+                  AND p.diretoria_id IN (
+                      SELECT u.diretoria_id FROM public.usuarios u WHERE u.id::text = v_user_id
+                      UNION
+                      SELECT ud.diretoria_id FROM public.usuario_diretorias ud WHERE ud.usuario_id::text = v_user_id
+                  )
+            ) INTO v_has_permission;
+        END IF;
+
+        IF NOT v_has_permission THEN
+            RAISE EXCEPTION 'Erro 403: Usuário não possui permissão para aprovar eventos.' USING ERRCODE = '42501';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+                    </pre>
+                </div>
+            </details>
+        </section>
+
+        <!-- 7. APIs & Integrações -->
+        <section id="apis-endpoints" class="section-card searchable">
+            <div class="section-title">
+                <i class="fas fa-network-wired"></i> 7. APIs & Canais de Comunicação
+            </div>
+            <p>O sistema se comunica exclusivamente com o Supabase através dos seguintes protocolos:</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Protocolo</th>
+                        <th>Endpoint / Canal</th>
+                        <th>Finalidade</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="badge badge-orange">HTTPS REST</span></td>
+                        <td><code>https://ruytftiztkrkvniqqmjj.supabase.co/rest/v1/*</code></td>
+                        <td>Operações CRUD em tabelas via PostgREST SDK.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-blue">WebSockets</span></td>
+                        <td><code>wss://.../realtime/v1/websocket (Channel: atletica-chat)</code></td>
+                        <td>Mensagens em tempo real, avatares e aviso de digitação no chat.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-gold">HTTPS Auth</span></td>
+                        <td><code>https://.../auth/v1/token</code></td>
+                        <td>Autenticação de e-mail/senha e geração de JWT Bearer Token.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- 8. Estado Global & RBAC -->
+        <section id="estado-global" class="section-card searchable">
+            <div class="section-title">
+                <i class="fas fa-memory"></i> 8. Estado Global em Memória & Regras RBAC
+            </div>
+            <p>A aplicação mantém um cache em memória no escopo global para garantir tempo de resposta instantâneo (&lt; 5ms) nas operações da interface:</p>
+
+            <div class="alert-box">
+                <div class="alert-title"><i class="fas fa-database"></i> Objeto window.DB</div>
+                Populado na carga inicial por <code>syncDBFromSupabase()</code>. Contém cópias locais em array de todas as tabelas sincronizadas (`usuarios`, `diretorias`, `usuario_diretorias`, `permissoes`, `eventos`, `lancamentos_financeiros`, etc.).
+            </div>
+
+            <div class="alert-box">
+                <div class="alert-title"><i class="fas fa-user-shield"></i> Objeto window.currentUser</div>
+                Armazena o perfil do usuário logado contendo o vetor <code>diretorias_ids[]</code>, resultante da união entre sua diretoria primária (`diretoria_id`) e diretorias secundárias atreladas na tabela `usuario_diretorias`.
+            </div>
+        </section>
+
+        <!-- 9. Arquivos Críticos -->
+        <section id="arquivos-criticos" class="section-card searchable">
+            <div class="section-title">
+                <i class="fas fa-file-code"></i> 9. Detalhamento dos Arquivos Críticos
+            </div>
+            
+            <details open>
+                <summary>app.js (Orquestrador da SPA)</summary>
+                <div class="details-content">
+                    <p>Contém 132 KB de lógica central. Responsável por instanciar <code>window.DB_Engine</code> com métodos CRUD genéricos, executar <code>syncDBFromSupabase()</code> em paralelo para carregar tabelas do Supabase, gerenciar a navegação por abas com <code>switchModule(moduleId)</code> e delegar para os inicializadores dos módulos.</p>
+                </div>
+            </details>
+
+            <details>
+                <summary>user_access.js (Motor RBAC)</summary>
+                <div class="details-content">
+                    <p>Implementa a verificação <code>canWrite(moduleId)</code>. Promove a checagem dinâmica contra o array `currentUser.diretorias_ids[]` e a matriz `window.DB.permissoes`, oferecendo bypass zero-priority para o Núcleo Executivo (`isExecutiveAdmin`). Controla a injeção do banner de visualização somente leitura (`applyReadonlyMode`).</p>
+                </div>
+            </details>
+
+            <details>
+                <summary>config.js (Matriz 2D Sticky)</summary>
+                <div class="details-content">
+                    <p>Contém o mapeamento <code>CATEGORIAS_PERMISSOES</code> abrangendo 29 ações operacionais organizadas por módulo. Constrói a tabela 2D com rolagem fixada nos dois eixos (sticky top/left) e sincroniza mutações na tabela `public.permissoes` do Supabase via <code>togglePermissao()</code>.</p>
+                </div>
+            </details>
+        </section>
+
+        <!-- 10. Dependências & Config -->
+        <section id="dependencias-config" class="section-card searchable">
+            <div class="section-title">
+                <i class="fas fa-sliders"></i> 10. Dependências & Arquivos de Configuração
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Arquivo</th>
+                        <th>Finalidade</th>
+                        <th>Conteúdo / Chaves Relevantes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>package.json</code></td>
+                        <td>Dependências de dev e scripts de teste</td>
+                        <td><code>@playwright/test ^1.45.0</code>, <code>@supabase/supabase-js ^2.43.0</code>.</td>
+                    </tr>
+                    <tr>
+                        <td><code>vercel.json</code></td>
+                        <td>Configuração de deploy estático</td>
+                        <td>Build via <code>@vercel/static</code> e reescrita de rotas SPA.</td>
+                    </tr>
+                    <tr>
+                        <td><code>playwright.config.js</code></td>
+                        <td>Parâmetros da suíte E2E</td>
+                        <td>Configurado para Chromium com servidor local `npx serve` na porta 3000.</td>
+                    </tr>
+                    <tr>
+                        <td><code>env.js</code></td>
+                        <td>Configurações de cliente Supabase</td>
+                        <td>Expõe <code>window.ENV.SUPABASE_URL</code> e <code>window.ENV.SUPABASE_KEY</code>.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- 11. Problemas & Melhorias -->
+        <section id="problemas-melhorias" class="section-card searchable">
+            <div class="section-title">
+                <i class="fas fa-bug"></i> 11. Débito Técnico & Recomendações de Melhoria
+            </div>
+
+            <div class="alert-box">
+                <div class="alert-title"><i class="fas fa-exclamation-triangle"></i> Débitos Técnicos Encontrados</div>
+                <ul>
+                    <li><strong>Arquivos Órfãos:</strong> O arquivo <code>permissoes.sql</code> na raiz é um snippet antigo de 4 linhas que foi superado pelos scripts da pasta <code>database/</code>.</li>
+                    <li><strong>Variáveis em env.js:</strong> A chave pública anon do Supabase está exposta no `env.js`. Embora seja uma chave pública projetada para o cliente, recomenda-se a substituição por variáveis injetadas no deploy Vercel em ambientes corporativos rígidos.</li>
+                </ul>
+            </div>
+
+            <div class="alert-box" style="background: rgba(34, 197, 94, 0.08); border-left-color: #22c55e;">
+                <div class="alert-title" style="color: #22c55e;"><i class="fas fa-rocket"></i> Melhorias Recomendadas</div>
+                <ul>
+                    <li><strong>Migração para ES Modules & Vite:</strong> Converter os arquivos com injeção em `window.*` para escopo de módulos ES6 nativos (`import/export`) usando Vite como empacotador.</li>
+                    <li><strong>Paginação Server-Side:</strong> Adicionar paginação remota (limit/offset) nas consultas REST de histórico de mensagens de chat e lançamentos do livro caixa ao ultrapassar 10.000 registros.</li>
+                </ul>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Script de Filtro em Tempo Real -->
+    <script>
+        // Inicializa Mermaid para renderizar os diagramas dinamicamente
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+
+        function filterDocs() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const searchableSections = document.querySelectorAll('.searchable');
+
+            searchableSections.forEach(section => {
+                const text = section.textContent.toLowerCase();
+                if (text.includes(query)) {
+                    section.style.display = '';
+                } else {
+                    section.style.display = 'none';
+                }
+            });
+        }
+    </script>
+</body>
+</html>

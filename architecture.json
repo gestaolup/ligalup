@@ -1,0 +1,376 @@
+{
+  "project": {
+    "name": "atletica-lup",
+    "description": "Plataforma SaaS de Gestão Estratégica para Atléticas Universitárias (LIGA-LUP). Sistema completo de controle financeiro, logística de eventos, loja/estoque, departamento esportivo, marketing, jurídico/GED, comunicação realtime e controle de acesso dinâmico (RBAC).",
+    "framework": "Vanilla JavaScript (ES6+ Modules) / HTML5 / Vanilla CSS3",
+    "language": "JavaScript (Browser Native / Node.js E2E)",
+    "architecture": "Single Page Application (SPA) desacoplada com Arquitetura de Estado Híbrida em Memória (window.DB) + Backend serverless no Supabase (PostgreSQL 15, Auth, REST, Realtime WebSockets) + RBAC Dinâmico e Triggers de Segurança PL/pgSQL."
+  },
+  "directories": [
+    {
+      "name": "root",
+      "path": "/",
+      "description": "Diretório raiz da aplicação SPA contendo os módulos JavaScript core, estáticos HTML/CSS e arquivos de configuração.",
+      "responsabilidade": "Estruturação principal, scripts de inicialização e rotas estáticas para Vercel."
+    },
+    {
+      "name": "database",
+      "path": "/database",
+      "description": "Scripts SQL contendo a definição do esquema relacional, migrações DDL, políticas RLS e triggers PL/pgSQL no PostgreSQL do Supabase.",
+      "responsabilidade": "Manutenção da integridade do banco de dados, regras de negócio e travamento de segurança."
+    },
+    {
+      "name": "assets",
+      "path": "/assets",
+      "description": "Recursos visuais estáticos como logotipo da Atlética e avatares padrão de usuários.",
+      "responsabilidade": "Fornecer imagens e marcas para a interface do usuário."
+    },
+    {
+      "name": "tests",
+      "path": "/tests",
+      "description": "Suíte de testes de regressão automatizada E2E implementada com Microsoft Playwright.",
+      "responsabilidade": "Garantir a estabilidade da aplicação, autenticação, sincronização de estado global e navegação entre módulos."
+    }
+  ],
+  "files": [
+    {
+      "name": "index.html",
+      "path": "/index.html",
+      "description": "Shell principal da aplicação SPA com navegação por abas laterais e 11 seções de módulos.",
+      "responsabilidade": "Estrutura DOM, layout de sidebar, modais de diálogo e marcação HTML de todos os módulos.",
+      "dependencias": ["style.css", "env.js", "app.js", "auth.js", "user_access.js", "finance.js", "chat.js", "config.js", "ged_docs.js"],
+      "quem_utiliza": ["Navegador do Usuário", "Vercel Static Host"],
+      "quem_e_utilizado": ["Todos os arquivos .js do projeto"]
+    },
+    {
+      "name": "app.js",
+      "path": "/app.js",
+      "description": "Orquestrador principal da aplicação SPA, inicializador do estado global `window.DB` e motor CRUD `window.DB_Engine`.",
+      "responsabilidade": "Sincronização em tempo real via `syncDBFromSupabase()`, controle de navegação entre abas, gerenciamento de modais e delegação para submódulos.",
+      "dependencias": ["env.js", "@supabase/supabase-js"],
+      "quem_utiliza": ["index.html"],
+      "quem_e_utilizado": ["auth.js", "user_access.js", "finance.js", "chat.js", "config.js", "ged_docs.js"]
+    },
+    {
+      "name": "user_access.js",
+      "path": "/user_access.js",
+      "description": "Módulo de Segurança e Controle de Acesso Baseado em Papéis (RBAC Dinâmico).",
+      "responsabilidade": "Validação de autorização em tempo de execução (`canWrite`), verificação do núcleo executivo (`isExecutiveAdmin`), controle da visibilidade da navegação (`applyNavPermissions`) e aplicação de banners de modo somente leitura (`applyReadonlyMode`).",
+      "dependencias": ["app.js"],
+      "quem_utiliza": ["app.js", "index.html"],
+      "quem_e_utilizado": ["window.DB.permissoes", "window.currentUser"]
+    },
+    {
+      "name": "config.js",
+      "path": "/config.js",
+      "description": "Módulo de Configurações Globais do Administrador Master e Renderizador da Matriz de Permissões.",
+      "responsabilidade": "Gestão da estrutura de 29 ações granulares (`CATEGORIAS_PERMISSOES`), renderização da tabela 2D sticky de permissões (`renderPermissoesMatrix`) e sincronização de alterações com a tabela `public.permissoes` (`togglePermissao`).",
+      "dependencias": ["app.js", "user_access.js"],
+      "quem_utiliza": ["app.js", "index.html"],
+      "quem_e_utilizado": ["window.supabaseClient", "window.DB"]
+    },
+    {
+      "name": "auth.js",
+      "path": "/auth.js",
+      "description": "Módulo de Autenticação e Gestão de Sessões.",
+      "responsabilidade": "Integração com Supabase Auth (`signInWithPassword`, `signOut`), recuperação de token e hidratação do perfil do usuário em `window.currentUser` com array `diretorias_ids`.",
+      "dependencias": ["app.js"],
+      "quem_utiliza": ["app.js", "index.html"],
+      "quem_e_utilizado": ["window.supabaseClient"]
+    },
+    {
+      "name": "finance.js",
+      "path": "/finance.js",
+      "description": "Módulo de Gestão Financeira e Livro Caixa (Tesouraria).",
+      "responsabilidade": "Cálculo de balanço e KPIs financeiros, renderização da tabela de lançamentos (`#ledger-table`), conciliação bancária inline (`toggleConciliacao`) e inclusão de receitas/despesas.",
+      "dependencias": ["app.js", "user_access.js"],
+      "quem_utiliza": ["app.js", "index.html"],
+      "quem_e_utilizado": ["window.DB.lancamentos_financeiros"]
+    },
+    {
+      "name": "chat.js",
+      "path": "/chat.js",
+      "description": "Módulo de Comunicação Interna e Chat Realtime.",
+      "responsabilidade": "Conexão com WebSockets do Supabase Realtime (`supabaseClient.channel('atletica-chat')`), envio de mensagens com upload de anexos, avatares e aviso de digitação.",
+      "dependencias": ["app.js"],
+      "quem_utiliza": ["app.js", "index.html"],
+      "quem_e_utilizado": ["window.supabaseClient", "window.DB"]
+    },
+    {
+      "name": "ged_docs.js",
+      "path": "/ged_docs.js",
+      "description": "Módulo de Gestão Eletrônica de Documentos (Jurídico & GED).",
+      "responsabilidade": "Upload de contratos, alertas de vencimento próximo, vinculação de parceiros e controle de vigência contratual.",
+      "dependencias": ["app.js", "user_access.js"],
+      "quem_utiliza": ["app.js", "index.html"],
+      "quem_e_utilizado": ["window.DB.documentos_contratos"]
+    },
+    {
+      "name": "style.css",
+      "path": "/style.css",
+      "description": "Folha de estilos CSS3 unificada com variáveis de design system, temas dark e layout responsivo.",
+      "responsabilidade": "Estilização visual da plataforma, glassmorphic cards, animações CSS, badges de status, tabelas com sticky scrolling 2D e responsividade.",
+      "dependencias": [],
+      "quem_utiliza": ["index.html"],
+      "quem_e_utilizado": []
+    },
+    {
+      "name": "env.js",
+      "path": "/env.js",
+      "description": "Arquivo de configuração de variáveis de ambiente do ambiente cliente.",
+      "responsabilidade": "Expor `window.ENV.SUPABASE_URL` e `window.ENV.SUPABASE_KEY` para inicialização do SDK do Supabase.",
+      "dependencias": [],
+      "quem_utiliza": ["app.js"],
+      "quem_e_utilizado": []
+    },
+    {
+      "name": "database/sprint3_triggers.sql",
+      "path": "/database/sprint3_triggers.sql",
+      "description": "Script de Triggers de Segurança Dinâmicas no PostgreSQL.",
+      "responsabilidade": "Implementação das funções PL/pgSQL `fn_trg_verificar_aprovacao_evento` e `fn_trg_proteger_documentacao_atleta` com suporte a múltiplas diretorias e bypass do Núcleo Executivo.",
+      "dependencias": ["database/schema.sql"],
+      "quem_utiliza": ["Supabase PostgreSQL Engine"],
+      "quem_e_utilizado": ["tabelas eventos e atletas"]
+    }
+  ],
+  "routes": [
+    {
+      "path": "#mod-dashboard",
+      "name": "Dashboard Executivo",
+      "description": "Painel geral com indicadores financeiros, calendário logístico de eventos e comunicados.",
+      "protegida": true,
+      "permissao_requerida": "mod-dashboard"
+    },
+    {
+      "path": "#mod-acessos",
+      "name": "Gestão de Acessos",
+      "description": "Administração de usuários, cargos e associação a diretorias.",
+      "protegida": true,
+      "permissao_requerida": "isExecutiveAdmin"
+    },
+    {
+      "path": "#mod-eventos",
+      "name": "Diretoria de Eventos",
+      "description": "Controle logístico de festas, campeonatos, orçamentos e aprovações.",
+      "protegida": true,
+      "permissao_requerida": "mod-eventos"
+    },
+    {
+      "path": "#mod-marketing",
+      "name": "Diretoria de Marketing",
+      "description": "Calendário editorial de mídias sociais e campanhas promocionais.",
+      "protegida": true,
+      "permissao_requerida": "mod-marketing"
+    },
+    {
+      "path": "#mod-produtos",
+      "name": "Produtos & Estoque",
+      "description": "Catálogo da loja oficial da Atlética e controle de inventário por variantes (P/M/G).",
+      "protegida": true,
+      "permissao_requerida": "mod-produtos"
+    },
+    {
+      "path": "#mod-esportes",
+      "name": "Esportes & Atletas",
+      "description": "Gestão de modalidades, escalação de times e validação documental médica/acadêmica de atletas.",
+      "protegida": true,
+      "permissao_requerida": "mod-esportes"
+    },
+    {
+      "path": "#mod-financeiro",
+      "name": "Tesouraria & Caixa",
+      "description": "Livro caixa completo, lançamentos de entradas/saídas e conciliação bancária.",
+      "protegida": true,
+      "permissao_requerida": "mod-financeiro"
+    },
+    {
+      "path": "#mod-parcerias",
+      "name": "Diretoria de Parcerias",
+      "description": "Funil de prospecção CRM para patrocinadores e apoiadores comerciais.",
+      "protegida": true,
+      "permissao_requerida": "mod-parcerias"
+    },
+    {
+      "path": "#mod-legal",
+      "name": "Jurídico & GED",
+      "description": "Gestão eletrônica de documentos, contratos e alertas de vencimento.",
+      "protegida": true,
+      "permissao_requerida": "mod-legal"
+    },
+    {
+      "path": "#mod-comunicacao",
+      "name": "Comunicação Interna",
+      "description": "Chat realtime via WebSockets e canal de comunicados oficiais.",
+      "protegida": true,
+      "permissao_requerida": "mod-comunicacao"
+    },
+    {
+      "path": "#mod-master-config",
+      "name": "Configurações Globais",
+      "description": "Parâmetros gerais do sistema e Matriz de Permissões 2D Sticky do Master.",
+      "protegida": true,
+      "permissao_requerida": "isExecutiveAdmin"
+    }
+  ],
+  "database": {
+    "orm": "Supabase JS Client SDK / Raw SQL via REST API e Triggers PL/pgSQL",
+    "tables": [
+      {
+        "name": "usuarios",
+        "description": "Tabela de membros da Atlética e credenciais de perfil associadas.",
+        "primary_key": "id (TEXT / UUID)",
+        "fields": ["id", "nome", "email", "cargo", "diretoria", "diretoria_id", "status", "avatar_url", "criado_em"]
+      },
+      {
+        "name": "diretorias",
+        "description": "Cadastro de departamentos organizacionais da Atlética.",
+        "primary_key": "id (UUID)",
+        "fields": ["id", "nome", "ativa", "criado_em"]
+      },
+      {
+        "name": "usuario_diretorias",
+        "description": "Tabela de junção N:M permitindo acúmulo de cargos e diretorias secundárias.",
+        "primary_key": "id (UUID)",
+        "foreign_keys": ["usuario_id -> usuarios.id", "diretoria_id -> diretorias.id"]
+      },
+      {
+        "name": "permissoes",
+        "description": "Matriz dinâmica de controle de permissões por diretoria.",
+        "primary_key": "id (UUID)",
+        "fields": ["id", "acao_sistema", "diretoria_id", "concedida", "criado_em"],
+        "foreign_keys": ["diretoria_id -> diretorias.id"]
+      },
+      {
+        "name": "eventos",
+        "description": "Registro de festas, jogos e eventos da Atlética com status de aprovação de orçamento.",
+        "primary_key": "id (UUID)",
+        "fields": ["id", "nome", "data_evento", "local", "orcamento_previsto", "status_aprovacao", "status_evento"]
+      },
+      {
+        "name": "lancamentos_financeiros",
+        "description": "Livro caixa de entradas e saídas financeiras com controle de conciliação.",
+        "primary_key": "id (UUID)",
+        "fields": ["id", "tipo", "categoria", "valor", "data_competencia", "status_conciliacao", "evento_id"]
+      },
+      {
+        "name": "produtos",
+        "description": "Itens da loja oficial da Atlética.",
+        "primary_key": "id (UUID)",
+        "fields": ["id", "nome", "descricao", "preco_custo", "preco_venda", "categoria"]
+      },
+      {
+        "name": "produto_variantes",
+        "description": "Variantes de tamanho (P/M/G) e controle de estoque de produtos.",
+        "primary_key": "id (UUID)",
+        "foreign_keys": ["produto_id -> produtos.id"]
+      },
+      {
+        "name": "atletas",
+        "description": "Cadastro de atletas universitários e status de validação médica/acadêmica.",
+        "primary_key": "id (UUID)",
+        "fields": ["id", "nome", "rg", "cpf", "curso", "status_documentacao", "comprovante_url"]
+      },
+      {
+        "name": "modalidades",
+        "description": "Modalidades esportivas (Futsal, Basquete, Handebol, etc.).",
+        "primary_key": "id (UUID)"
+      },
+      {
+        "name": "parceiros_patrocinadores",
+        "description": "Funil CRM de parceiros comerciais e patrocinadores.",
+        "primary_key": "id (UUID)",
+        "fields": ["id", "nome_empresa", "tipo_parceria", "status_funil", "valor_patrocinio"]
+      },
+      {
+        "name": "documentos_contratos",
+        "description": "Repositório GED de contratos e documentos jurídicos.",
+        "primary_key": "id (UUID)",
+        "fields": ["id", "titulo", "tipo_documento", "arquivo_url", "data_vencimento", "parceiro_id"]
+      },
+      {
+        "name": "logs_notificacoes",
+        "description": "Auditoria de tentativas de violação de segurança e alertas do sistema.",
+        "primary_key": "id (UUID)",
+        "fields": ["id", "usuario_id", "tipo_notificacao", "gatilho_regra", "erro_detalhe", "criado_em"]
+      }
+    ],
+    "triggers": [
+      {
+        "name": "trg_verificar_aprovacao_evento",
+        "table": "eventos",
+        "function": "fn_trg_verificar_aprovacao_evento",
+        "description": "Garante que a transição para status 'Aprovado' só ocorra se o usuário pertencer ao Núcleo Executivo ou possuir a permissão `aprovar_evento` ou `mod-financeiro` em suas diretorias vinculadas."
+      },
+      {
+        "name": "trg_proteger_documentacao_atleta",
+        "table": "atletas",
+        "function": "fn_trg_proteger_documentacao_atleta",
+        "description": "Impede a alteração do `status_documentacao` por usuários sem permissão `validar_atleta` ou `mod-legal`."
+      },
+      {
+        "name": "trg_proteger_lancamento_conciliado_update",
+        "table": "lancamentos_financeiros",
+        "function": "fn_trg_proteger_lancamento_conciliado",
+        "description": "Assegura a imutabilidade do caixa impedindo a alteração de valor/data em lançamentos já conciliados."
+      }
+    ]
+  },
+  "authentication": {
+    "provider": "Supabase Auth",
+    "method": "Email and Password (JWT Bearer Token)",
+    "session_storage": "Browser LocalStorage (handled by Supabase Client SDK)",
+    "user_hydration": "Busca correspondência em `public.usuarios` via `auth.uid()`, resolvendo `diretoria_id` primário e ligando secundárias de `usuario_diretorias` para formar `currentUser.diretorias_ids[]`."
+  },
+  "apis": [
+    {
+      "endpoint": "https://ruytftiztkrkvniqqmjj.supabase.co/rest/v1/*",
+      "protocol": "HTTPS REST (PostgREST)",
+      "payload_type": "JSON",
+      "description": "Interface REST para operações CRUD sincronizadas pelo `app.js` e mantidas no `window.DB`."
+    },
+    {
+      "endpoint": "wss://ruytftiztkrkvniqqmjj.supabase.co/realtime/v1/websocket",
+      "protocol": "WebSockets",
+      "payload_type": "JSON Realtime Broadcast",
+      "description": "Canal Realtime (`atletica-chat`) consumido pelo `chat.js` para troca instantânea de mensagens."
+    }
+  ],
+  "environment_variables": [
+    {
+      "name": "SUPABASE_URL",
+      "where_defined": "env.js (window.ENV.SUPABASE_URL)",
+      "description": "URL base do projeto Supabase."
+    },
+    {
+      "name": "SUPABASE_KEY",
+      "where_defined": "env.js (window.ENV.SUPABASE_KEY)",
+      "description": "Chave pública anônima do Supabase Client API."
+    }
+  ],
+  "known_issues": [
+    {
+      "issue": "Chave pública do Supabase em arquivo estático env.js",
+      "impacto": "Baixo (chave pública anon é desenhada para exposição client-side, mas a segurança é garantida via RLS e Triggers no PostgreSQL)."
+    },
+    {
+      "issue": "Script legado permissoes.sql na raiz do repositório",
+      "impacto": "Nenhum (arquivo legado de 4 linhas que foi integralmente substituído por database/sprint3_triggers.sql)."
+    }
+  ],
+  "technical_debt": [
+    {
+      "item": "Modularização em ES Modules nativos",
+      "descricao": "Atualmente os scripts injetam funções em `window.*` (ex: `window.initFinanceModule`). Pode ser refatorado no futuro para ES6 `import/export` utilizando um bundler como Vite."
+    }
+  ],
+  "improvements": [
+    {
+      "categoria": "Arquitetura & Bundling",
+      "sugestao": "Migrar o build estático para Vite com TypeScript para obter checagem de tipos estática no desenvolvimento."
+    },
+    {
+      "categoria": "Performance",
+      "sugestao": "Implementar paginação no lado do servidor (limit/offset) no `syncDBFromSupabase()` quando o histórico de movimentações financeiras ou chat ultrapassar 10.000 registros."
+    }
+  ]
+}
