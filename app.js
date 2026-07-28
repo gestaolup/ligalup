@@ -245,10 +245,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (newStatus === 'Aprovado' && oldStatus !== 'Aprovado') {
                 logSQL(`Evaluating trg_gerar_lancamento_evento_aprovado AFTER UPDATE...`, 'trigger');
                 
-                // Criação automática do lançamento financeiro (Débito/Saída)
-                const newFinanceId = 'lf_' + Date.now();
+                // Criação automática do lançamento financeiro (Débito/Saída) — persistido de verdade no Supabase
                 const financeEntry = {
-                    id: newFinanceId,
+                    id: crypto.randomUUID(),
                     tipo: 'Saída',
                     categoria: 'Logística Evento',
                     valor: event.orcamento_previsto,
@@ -257,6 +256,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     evento_id: event.id,
                     produto_id: null
                 };
+                supabase.from('lancamentos_financeiros').insert([financeEntry]).then(({ error }) => {
+                    if (error) { console.error('[Lançamentos] Erro ao gerar lançamento de evento aprovado:', error); return; }
+                });
                 DB.lancamentos_financeiros.push(financeEntry);
                 logSQL(`Trigger RN-EV-02: Lançamento financeiro de Saída criado automaticamente para '${event.name}' (Valor: R$ ${event.orcamento_previsto.toFixed(2)})`, 'trigger');
             }
@@ -748,10 +750,9 @@ document.addEventListener('DOMContentLoaded', () => {
             logSQL(`Participante '${nome}' cadastrado para o evento com taxa de R$ ${parseFloat(valorCobrado).toFixed(2)}.`, 'success');
             
             if (statusPagamento === 'Pago') {
-                const newFinanceId = 'lf_' + Date.now();
                 const event = DB.eventos.find(e => e.id === eventoId);
-                DB.lancamentos_financeiros.push({
-                    id: newFinanceId,
+                const financeEntry = {
+                    id: crypto.randomUUID(),
                     tipo: 'Entrada',
                     categoria: `Ingresso: ${event ? event.nome : 'Evento'}`,
                     valor: parseFloat(valorCobrado),
@@ -759,7 +760,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     status_conciliacao: false,
                     evento_id: eventoId,
                     produto_id: null
+                };
+                supabase.from('lancamentos_financeiros').insert([financeEntry]).then(({ error }) => {
+                    if (error) console.error('[Lançamentos] Erro ao gerar lançamento de ingresso:', error);
                 });
+                DB.lancamentos_financeiros.push(financeEntry);
                 logSQL(`Trigger Automático: Lançamento de Entrada de R$ ${parseFloat(valorCobrado).toFixed(2)} criado no caixa referente ao ingresso de ${nome}.`, 'trigger');
             }
             
@@ -790,10 +795,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (status === 'Pago') {
                 part.data_pagamento = new Date().toISOString().split('T')[0];
                 
-                const newFinanceId = 'lf_' + Date.now();
                 const event = DB.eventos.find(e => e.id === part.evento_id);
-                DB.lancamentos_financeiros.push({
-                    id: newFinanceId,
+                const financeEntry = {
+                    id: crypto.randomUUID(),
                     tipo: 'Entrada',
                     categoria: `Ingresso: ${event ? event.nome : 'Evento'}`,
                     valor: part.valor_cobrado,
@@ -801,7 +805,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     status_conciliacao: false,
                     evento_id: part.evento_id,
                     produto_id: null
+                };
+                supabase.from('lancamentos_financeiros').insert([financeEntry]).then(({ error }) => {
+                    if (error) console.error('[Lançamentos] Erro ao gerar lançamento de pagamento:', error);
                 });
+                DB.lancamentos_financeiros.push(financeEntry);
                 logSQL(`Trigger Automático: Lançamento de Entrada de R$ ${part.valor_cobrado.toFixed(2)} criado no caixa referente ao pagamento de ${part.nome}.`, 'trigger');
             } else {
                 part.data_pagamento = null;
@@ -1729,10 +1737,9 @@ navItems.forEach(item => {
             const product = DB.produtos.find(p => p.id === variant.produto_id);
             const totalVal = product.preco_venda * quant;
             
-            // Injeta o lançamento financeiro automático correspondente à venda
-            const finId = 'lf_' + Date.now();
-            DB.lancamentos_financeiros.push({
-                id: finId,
+            // Injeta o lançamento financeiro automático correspondente à venda — persistido de verdade no Supabase
+            const financeEntry = {
+                id: crypto.randomUUID(),
                 tipo: 'Entrada',
                 categoria: `Venda ${product.nome} (Qtd: ${quant})`,
                 valor: totalVal,
@@ -1740,7 +1747,11 @@ navItems.forEach(item => {
                 status_conciliacao: false,
                 evento_id: null,
                 produto_id: product.id
+            };
+            supabase.from('lancamentos_financeiros').insert([financeEntry]).then(({ error }) => {
+                if (error) console.error('[Lançamentos] Erro ao gerar lançamento de venda:', error);
             });
+            DB.lancamentos_financeiros.push(financeEntry);
             logSQL(`Venda registrada! Entrada de R$ ${totalVal.toFixed(2)} inserida no caixa do produto '${product.nome}' (Variant size: ${variant.tamanho}).`, 'success');
             
             document.getElementById('dist-qty').value = '1';
@@ -2208,28 +2219,48 @@ navItems.forEach(item => {
     // Handler: Create Modality Form
     const formCreateModality = document.getElementById('form-create-modality');
     if (formCreateModality) {
-        formCreateModality.addEventListener('submit', (e) => {
+        formCreateModality.addEventListener('submit', async (e) => {
             e.preventDefault();
             const nome = document.getElementById('mod-nome').value;
             const coordId = document.getElementById('mod-coordenador').value;
             const categoria = document.getElementById('mod-categoria').value;
-            
-            // Create a custom insertion to include the category!
-            logSQL(`INSERT INTO modalidades (nome, coordenador_id, categoria) VALUES ('${nome}', '${coordId}', '${categoria}');`, 'query');
-            const newId = 'm_' + Date.now();
-            DB.modalidades.push({ id: newId, nome: nome, coordenador_id: coordId || null, categoria: categoria });
-            logSQL(`Modalidade '${nome}' de categoria '${categoria}' cadastrada com sucesso.`, 'success');
-            
+
+            if (!nome) {
+                alert('Nome da modalidade é obrigatório!');
+                return;
+            }
+
+            // Nota: a tabela 'modalidades' no Supabase não possui coluna 'categoria'
+            // hoje — o valor do campo é mantido só na UI/local até uma migração
+            // adicionar essa coluna. Persistimos nome + coordenador_id de verdade.
+            logSQL(`INSERT INTO modalidades (nome, coordenador_id) VALUES ('${nome}', '${coordId}');`, 'query');
+
+            const { data, error } = await supabase
+                .from('modalidades')
+                .insert([{ id: crypto.randomUUID(), nome: nome, coordenador_id: coordId || null }])
+                .select()
+                .single();
+
+            if (error) {
+                console.error('[Modalidades] Erro ao cadastrar:', error);
+                logSQL(`Erro ao cadastrar modalidade: ${error.message}`, 'error');
+                showDBErrorDialog(error.code || 'ERROR', 'modalidades', error.message);
+                return;
+            }
+
+            DB.modalidades.push({ ...data, categoria: categoria || null });
+            logSQL(`Modalidade '${nome}' cadastrada com sucesso (ID: ${data.id}).`, 'success');
+
             // Reset fields
             document.getElementById('mod-nome').value = '';
             document.getElementById('mod-coordenador').value = '';
-            
+
             // Rebuild selects that depend on modalities
             const rosterModSelect = document.getElementById('roster-mod-select');
             if (rosterModSelect) rosterModSelect.removeAttribute('data-populated');
             const enrollModSelect = document.getElementById('enroll-mod-select');
             if (enrollModSelect) enrollModSelect.removeAttribute('data-populated');
-            
+
             refreshAllUI();
         });
     }
@@ -2239,7 +2270,7 @@ navItems.forEach(item => {
     if (btnEnrollAthlete) {
         // Remove old listener if double defined or just replace
         btnEnrollAthlete.replaceWith(btnEnrollAthlete.cloneNode(true));
-        document.getElementById('btn-enroll-athlete').addEventListener('click', () => {
+        document.getElementById('btn-enroll-athlete').addEventListener('click', async () => {
             const name = document.getElementById('enroll-name').value;
             const ra = document.getElementById('enroll-ra').value;
             const modId = document.getElementById('enroll-mod-select').value;
@@ -2249,17 +2280,29 @@ navItems.forEach(item => {
                 return;
             }
 
-            const newId = 'a_' + Date.now();
-            DB.atletas.push({
-                id: newId,
-                nome: name,
-                ra_matricula: ra,
-                modalidade_id: modId,
-                status_documentacao: 'Pendente' // Default is pending for Juridico approval
-            });
-
             logSQL(`INSERT INTO atletas (nome, ra_matricula, modalidade_id, status_documentacao) VALUES ('${name}', '${ra}', '${modId}', 'Pendente');`, 'query');
-            logSQL(`Atleta cadastrado com sucesso. Status inicial da documentação: 'Pendente'. Requer análise jurídica para homologação de elegibilidade desportiva (RN-ESP-01).`, 'success');
+
+            const { data, error } = await supabase
+                .from('atletas')
+                .insert([{
+                    id: crypto.randomUUID(),
+                    nome: name,
+                    ra_matricula: ra,
+                    modalidade_id: modId,
+                    status_documentacao: 'Pendente' // Default is pending for Juridico approval
+                }])
+                .select()
+                .single();
+
+            if (error) {
+                console.error('[Atletas] Erro ao cadastrar:', error);
+                logSQL(`Erro ao cadastrar atleta: ${error.message}`, 'error');
+                showDBErrorDialog(error.code || 'ERROR', 'atletas', error.message);
+                return;
+            }
+
+            DB.atletas.push(data);
+            logSQL(`Atleta cadastrado com sucesso (ID: ${data.id}). Status inicial da documentação: 'Pendente'. Requer análise jurídica para homologação de elegibilidade desportiva (RN-ESP-01).`, 'success');
 
             document.getElementById('enroll-name').value = '';
             document.getElementById('enroll-ra').value = '';
