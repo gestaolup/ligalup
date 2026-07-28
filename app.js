@@ -451,18 +451,34 @@ document.addEventListener('DOMContentLoaded', () => {
             return false;
         },
 
-        // Simula INSERT em Fornecedores
-        insertFornecedor: function(nome, contato, telefone, email, tipo_produto, categoria_servico, obs) {
-            logSQL(`INSERT INTO fornecedores (nome, contato, telefone, email, tipo_produto, categoria_servico, obs) VALUES (...);`, 'query');
+        // INSERT real em Fornecedores (Supabase) — corrigido: antes só simulava em memória
+        // (id fake 'f_<timestamp>' que nunca existia na tabela real, causando violação de
+        // foreign key ao criar Pedidos de Compra com esse fornecedor).
+        insertFornecedor: async function(nome, contato, telefone, email, tipo_produto, categoria_servico, obs) {
             if (!nome || !tipo_produto || !categoria_servico) {
                 showDBErrorDialog('23502 (Not Null Violation)', 'fornecedores.nome', 'Nome, tipo de produto e categoria são campos obrigatórios.');
                 return false;
             }
-            const newId = 'f_' + Date.now();
-            DB.fornecedores.push({ id: newId, nome, contato, telefone, email, tipo_produto, categoria_servico, obs });
-            logSQL(`Fornecedor '${nome}' cadastrado com sucesso (ID: ${newId}).`, 'success');
+
+            logSQL(`INSERT INTO fornecedores (nome, contato, telefone, email, tipo_produto, categoria_servico, obs) VALUES (...);`, 'query');
+
+            const { data, error } = await supabase
+                .from('fornecedores')
+                .insert([{ nome, contato, telefone, email, tipo_produto, categoria_servico, obs }])
+                .select()
+                .single();
+
+            if (error) {
+                console.error('[Fornecedores] Erro ao cadastrar:', error);
+                logSQL(`Erro ao cadastrar fornecedor: ${error.message}`, 'error');
+                showDBErrorDialog(error.code || 'ERROR', 'fornecedores', error.message);
+                return false;
+            }
+
+            DB.fornecedores.push(data);
+            logSQL(`Fornecedor '${nome}' cadastrado com sucesso (ID: ${data.id}).`, 'success');
             refreshAllUI();
-            return newId;
+            return data.id;
         },
 
         // Simula INSERT em Pedidos de Compra
@@ -846,7 +862,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     continue;
                 }
 
-                if (data?.length > 0) DB[table] = data;
+                // Corrigido: antes só sobrescrevia DB[table] quando data.length > 0,
+                // então uma tabela real vazia no Supabase nunca limpava dados falsos
+                // deixados em memória por inserts que não persistiam (ex.: fornecedores/produtos).
+                if (data) DB[table] = data;
             }
 
             // Mapeamento transicional: injeta o nome da diretoria e computa diretorias_ids acumuladas
@@ -1735,34 +1754,67 @@ navItems.forEach(item => {
     const btnCancelProduct = document.getElementById('btn-cancel-product');
 
     if (formManageProduct) {
-        formManageProduct.addEventListener('submit', (e) => {
+        formManageProduct.addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('prod-edit-id').value;
             const nome = document.getElementById('prod-nome').value;
             const custo = parseFloat(document.getElementById('prod-custo').value) || 0;
             const venda = parseFloat(document.getElementById('prod-venda').value) || 0;
 
-            if (id) {
-                // Update
-                const prod = DB.produtos.find(p => p.id === id);
-                if (prod) {
-                    prod.nome = nome;
-                    prod.preco_custo = custo;
-                    prod.preco_venda = venda;
-                    logSQL(`UPDATE produtos SET nome='${nome}', preco_custo=${custo}, preco_venda=${venda} WHERE id='${id}';`, 'query');
-                }
-            } else {
-                // Insert
-                const newId = 'p_' + Date.now();
-                DB.produtos.push({
-                    id: newId,
-                    nome: nome,
-                    preco_custo: custo,
-                    preco_venda: venda
-                });
-                logSQL(`INSERT INTO produtos (nome, preco_custo, preco_venda) VALUES ('${nome}', ${custo}, ${venda});`, 'query');
+            if (!nome) {
+                showDBErrorDialog('23502 (Not Null Violation)', 'produtos.nome', 'O nome do produto é obrigatório.');
+                return;
             }
 
+            const btnSave = document.getElementById('btn-save-product');
+            if (btnSave) btnSave.disabled = true;
+
+            if (id) {
+                // Update real via Supabase — antes só alterava o objeto em memória
+                logSQL(`UPDATE produtos SET nome='${nome}', preco_custo=${custo}, preco_venda=${venda} WHERE id='${id}';`, 'query');
+
+                const { data, error } = await supabase
+                    .from('produtos')
+                    .update({ nome, preco_custo: custo, preco_venda: venda })
+                    .eq('id', id)
+                    .select()
+                    .single();
+
+                if (error) {
+                    console.error('[Produtos] Erro ao atualizar:', error);
+                    logSQL(`Erro ao atualizar produto: ${error.message}`, 'error');
+                    showDBErrorDialog(error.code || 'ERROR', 'produtos', error.message);
+                    if (btnSave) btnSave.disabled = false;
+                    return;
+                }
+
+                const prod = DB.produtos.find(p => p.id === id);
+                if (prod) Object.assign(prod, data);
+                logSQL(`Produto '${nome}' atualizado com sucesso.`, 'success');
+            } else {
+                // Insert real via Supabase — antes só simulava em memória com id fake
+                // 'p_<timestamp>' que nunca existia na tabela real.
+                logSQL(`INSERT INTO produtos (nome, preco_custo, preco_venda) VALUES ('${nome}', ${custo}, ${venda});`, 'query');
+
+                const { data, error } = await supabase
+                    .from('produtos')
+                    .insert([{ nome, preco_custo: custo, preco_venda: venda }])
+                    .select()
+                    .single();
+
+                if (error) {
+                    console.error('[Produtos] Erro ao cadastrar:', error);
+                    logSQL(`Erro ao cadastrar produto: ${error.message}`, 'error');
+                    showDBErrorDialog(error.code || 'ERROR', 'produtos', error.message);
+                    if (btnSave) btnSave.disabled = false;
+                    return;
+                }
+
+                DB.produtos.push(data);
+                logSQL(`Produto '${nome}' cadastrado com sucesso (ID: ${data.id}).`, 'success');
+            }
+
+            if (btnSave) btnSave.disabled = false;
             formManageProduct.reset();
             document.getElementById('prod-edit-id').value = '';
             document.getElementById('btn-save-product').innerHTML = '<i class="fas fa-save"></i> Salvar Produto';
@@ -2350,9 +2402,9 @@ navItems.forEach(item => {
     // Event Handler: Create Supplier
     const formCreateSupplier = document.getElementById('form-create-supplier');
     if (formCreateSupplier) {
-        formCreateSupplier.addEventListener('submit', (e) => {
+        formCreateSupplier.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const ok = DB_Engine.insertFornecedor(
+            const ok = await DB_Engine.insertFornecedor(
                 document.getElementById('sup-nome').value,
                 document.getElementById('sup-contato').value,
                 document.getElementById('sup-telefone').value,
