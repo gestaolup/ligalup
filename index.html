@@ -9,7 +9,51 @@
     <link rel="stylesheet" href="style.css">
     <!-- FontAwesome para ícones premium -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
+    <!-- Estilos para Empty States (telas/tabelas sem registros cadastrados) -->
+    <style>
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            gap: 8px;
+            padding: 48px 24px;
+            width: 100%;
+        }
+        .empty-state .icon-empty {
+            font-size: 32px;
+            color: var(--text-muted, #6b7280);
+            opacity: 0.6;
+            margin-bottom: 8px;
+        }
+        .empty-state h3 {
+            margin: 0;
+            font-size: 15px;
+            color: var(--text-secondary, #9ca3af);
+        }
+        .empty-state p {
+            margin: 0 0 12px 0;
+            font-size: 13px;
+            color: var(--text-muted, #6b7280);
+            max-width: 320px;
+        }
+        .empty-state .btn-primary {
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            background: var(--accent, #f97316);
+            color: #fff;
+        }
+        .empty-state .btn-primary:hover {
+            filter: brightness(1.08);
+        }
+    </style>
+
     <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="env.js"></script>

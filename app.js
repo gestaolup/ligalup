@@ -245,10 +245,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (newStatus === 'Aprovado' && oldStatus !== 'Aprovado') {
                 logSQL(`Evaluating trg_gerar_lancamento_evento_aprovado AFTER UPDATE...`, 'trigger');
                 
-                // Criação automática do lançamento financeiro (Débito/Saída)
-                const newFinanceId = 'lf_' + Date.now();
+                // Criação automática do lançamento financeiro (Débito/Saída) — persistido de verdade no Supabase
                 const financeEntry = {
-                    id: newFinanceId,
+                    id: crypto.randomUUID(),
                     tipo: 'Saída',
                     categoria: 'Logística Evento',
                     valor: event.orcamento_previsto,
@@ -257,6 +256,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     evento_id: event.id,
                     produto_id: null
                 };
+                supabase.from('lancamentos_financeiros').insert([financeEntry]).then(({ error }) => {
+                    if (error) { console.error('[Lançamentos] Erro ao gerar lançamento de evento aprovado:', error); return; }
+                });
                 DB.lancamentos_financeiros.push(financeEntry);
                 logSQL(`Trigger RN-EV-02: Lançamento financeiro de Saída criado automaticamente para '${event.name}' (Valor: R$ ${event.orcamento_previsto.toFixed(2)})`, 'trigger');
             }
@@ -451,18 +453,34 @@ document.addEventListener('DOMContentLoaded', () => {
             return false;
         },
 
-        // Simula INSERT em Fornecedores
-        insertFornecedor: function(nome, contato, telefone, email, tipo_produto, categoria_servico, obs) {
-            logSQL(`INSERT INTO fornecedores (nome, contato, telefone, email, tipo_produto, categoria_servico, obs) VALUES (...);`, 'query');
+        // INSERT real em Fornecedores (Supabase) — corrigido: antes só simulava em memória
+        // (id fake 'f_<timestamp>' que nunca existia na tabela real, causando violação de
+        // foreign key ao criar Pedidos de Compra com esse fornecedor).
+        insertFornecedor: async function(nome, contato, telefone, email, tipo_produto, categoria_servico, obs) {
             if (!nome || !tipo_produto || !categoria_servico) {
                 showDBErrorDialog('23502 (Not Null Violation)', 'fornecedores.nome', 'Nome, tipo de produto e categoria são campos obrigatórios.');
                 return false;
             }
-            const newId = 'f_' + Date.now();
-            DB.fornecedores.push({ id: newId, nome, contato, telefone, email, tipo_produto, categoria_servico, obs });
-            logSQL(`Fornecedor '${nome}' cadastrado com sucesso (ID: ${newId}).`, 'success');
+
+            logSQL(`INSERT INTO fornecedores (nome, contato, telefone, email, tipo_produto, categoria_servico, obs) VALUES (...);`, 'query');
+
+            const { data, error } = await supabase
+                .from('fornecedores')
+                .insert([{ nome, contato, telefone, email, tipo_produto, categoria_servico, obs }])
+                .select()
+                .single();
+
+            if (error) {
+                console.error('[Fornecedores] Erro ao cadastrar:', error);
+                logSQL(`Erro ao cadastrar fornecedor: ${error.message}`, 'error');
+                showDBErrorDialog(error.code || 'ERROR', 'fornecedores', error.message);
+                return false;
+            }
+
+            DB.fornecedores.push(data);
+            logSQL(`Fornecedor '${nome}' cadastrado com sucesso (ID: ${data.id}).`, 'success');
             refreshAllUI();
-            return newId;
+            return data.id;
         },
 
         // Simula INSERT em Pedidos de Compra
@@ -732,10 +750,9 @@ document.addEventListener('DOMContentLoaded', () => {
             logSQL(`Participante '${nome}' cadastrado para o evento com taxa de R$ ${parseFloat(valorCobrado).toFixed(2)}.`, 'success');
             
             if (statusPagamento === 'Pago') {
-                const newFinanceId = 'lf_' + Date.now();
                 const event = DB.eventos.find(e => e.id === eventoId);
-                DB.lancamentos_financeiros.push({
-                    id: newFinanceId,
+                const financeEntry = {
+                    id: crypto.randomUUID(),
                     tipo: 'Entrada',
                     categoria: `Ingresso: ${event ? event.nome : 'Evento'}`,
                     valor: parseFloat(valorCobrado),
@@ -743,7 +760,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     status_conciliacao: false,
                     evento_id: eventoId,
                     produto_id: null
+                };
+                supabase.from('lancamentos_financeiros').insert([financeEntry]).then(({ error }) => {
+                    if (error) console.error('[Lançamentos] Erro ao gerar lançamento de ingresso:', error);
                 });
+                DB.lancamentos_financeiros.push(financeEntry);
                 logSQL(`Trigger Automático: Lançamento de Entrada de R$ ${parseFloat(valorCobrado).toFixed(2)} criado no caixa referente ao ingresso de ${nome}.`, 'trigger');
             }
             
@@ -774,10 +795,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (status === 'Pago') {
                 part.data_pagamento = new Date().toISOString().split('T')[0];
                 
-                const newFinanceId = 'lf_' + Date.now();
                 const event = DB.eventos.find(e => e.id === part.evento_id);
-                DB.lancamentos_financeiros.push({
-                    id: newFinanceId,
+                const financeEntry = {
+                    id: crypto.randomUUID(),
                     tipo: 'Entrada',
                     categoria: `Ingresso: ${event ? event.nome : 'Evento'}`,
                     valor: part.valor_cobrado,
@@ -785,7 +805,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     status_conciliacao: false,
                     evento_id: part.evento_id,
                     produto_id: null
+                };
+                supabase.from('lancamentos_financeiros').insert([financeEntry]).then(({ error }) => {
+                    if (error) console.error('[Lançamentos] Erro ao gerar lançamento de pagamento:', error);
                 });
+                DB.lancamentos_financeiros.push(financeEntry);
                 logSQL(`Trigger Automático: Lançamento de Entrada de R$ ${part.valor_cobrado.toFixed(2)} criado no caixa referente ao pagamento de ${part.nome}.`, 'trigger');
             } else {
                 part.data_pagamento = null;
@@ -846,7 +870,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     continue;
                 }
 
-                if (data?.length > 0) DB[table] = data;
+                // Corrigido: antes só sobrescrevia DB[table] quando data.length > 0,
+                // então uma tabela real vazia no Supabase nunca limpava dados falsos
+                // deixados em memória por inserts que não persistiam (ex.: fornecedores/produtos).
+                if (data) DB[table] = data;
             }
 
             // Mapeamento transicional: injeta o nome da diretoria e computa diretorias_ids acumuladas
@@ -1594,6 +1621,21 @@ navItems.forEach(item => {
         const productsTbody = document.querySelector('#produtos-list-table tbody');
         if (productsTbody) {
             productsTbody.innerHTML = '';
+
+            if (!DB.produtos || DB.produtos.length === 0) {
+                productsTbody.innerHTML = `
+                    <tr>
+                        <td colspan="4">
+                            <div class="empty-state">
+                                <i class="fas fa-shirt icon-empty"></i>
+                                <h3>Nenhum produto cadastrado</h3>
+                                <p>Ainda não há produtos cadastrados neste módulo.</p>
+                                <button class="btn-primary" onclick="document.getElementById('prod-nome')?.focus()">+ Cadastrar Produto</button>
+                            </div>
+                        </td>
+                    </tr>`;
+            }
+
             DB.produtos.forEach(p => {
                 const tr = document.createElement('tr');
                 tr.style.cursor = 'pointer';
@@ -1642,6 +1684,20 @@ navItems.forEach(item => {
         }
 
         
+        if (!DB.produto_variantes || DB.produto_variantes.length === 0) {
+            inventoryTbody.innerHTML = `
+                <tr>
+                    <td colspan="5">
+                        <div class="empty-state">
+                            <i class="fas fa-boxes-stacked icon-empty"></i>
+                            <h3>Nenhuma variante em estoque</h3>
+                            <p>Cadastre um produto e suas variantes para começar a controlar o estoque.</p>
+                            <button class="btn-primary" onclick="document.getElementById('prod-nome')?.focus()">+ Cadastrar Produto</button>
+                        </div>
+                    </td>
+                </tr>`;
+        }
+
         DB.produto_variantes.forEach(variant => {
             const product = DB.produtos.find(p => p.id === variant.produto_id);
             const tr = document.createElement('tr');
@@ -1710,10 +1766,9 @@ navItems.forEach(item => {
             const product = DB.produtos.find(p => p.id === variant.produto_id);
             const totalVal = product.preco_venda * quant;
             
-            // Injeta o lançamento financeiro automático correspondente à venda
-            const finId = 'lf_' + Date.now();
-            DB.lancamentos_financeiros.push({
-                id: finId,
+            // Injeta o lançamento financeiro automático correspondente à venda — persistido de verdade no Supabase
+            const financeEntry = {
+                id: crypto.randomUUID(),
                 tipo: 'Entrada',
                 categoria: `Venda ${product.nome} (Qtd: ${quant})`,
                 valor: totalVal,
@@ -1721,7 +1776,11 @@ navItems.forEach(item => {
                 status_conciliacao: false,
                 evento_id: null,
                 produto_id: product.id
+            };
+            supabase.from('lancamentos_financeiros').insert([financeEntry]).then(({ error }) => {
+                if (error) console.error('[Lançamentos] Erro ao gerar lançamento de venda:', error);
             });
+            DB.lancamentos_financeiros.push(financeEntry);
             logSQL(`Venda registrada! Entrada de R$ ${totalVal.toFixed(2)} inserida no caixa do produto '${product.nome}' (Variant size: ${variant.tamanho}).`, 'success');
             
             document.getElementById('dist-qty').value = '1';
@@ -1735,34 +1794,67 @@ navItems.forEach(item => {
     const btnCancelProduct = document.getElementById('btn-cancel-product');
 
     if (formManageProduct) {
-        formManageProduct.addEventListener('submit', (e) => {
+        formManageProduct.addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('prod-edit-id').value;
             const nome = document.getElementById('prod-nome').value;
             const custo = parseFloat(document.getElementById('prod-custo').value) || 0;
             const venda = parseFloat(document.getElementById('prod-venda').value) || 0;
 
-            if (id) {
-                // Update
-                const prod = DB.produtos.find(p => p.id === id);
-                if (prod) {
-                    prod.nome = nome;
-                    prod.preco_custo = custo;
-                    prod.preco_venda = venda;
-                    logSQL(`UPDATE produtos SET nome='${nome}', preco_custo=${custo}, preco_venda=${venda} WHERE id='${id}';`, 'query');
-                }
-            } else {
-                // Insert
-                const newId = 'p_' + Date.now();
-                DB.produtos.push({
-                    id: newId,
-                    nome: nome,
-                    preco_custo: custo,
-                    preco_venda: venda
-                });
-                logSQL(`INSERT INTO produtos (nome, preco_custo, preco_venda) VALUES ('${nome}', ${custo}, ${venda});`, 'query');
+            if (!nome) {
+                showDBErrorDialog('23502 (Not Null Violation)', 'produtos.nome', 'O nome do produto é obrigatório.');
+                return;
             }
 
+            const btnSave = document.getElementById('btn-save-product');
+            if (btnSave) btnSave.disabled = true;
+
+            if (id) {
+                // Update real via Supabase — antes só alterava o objeto em memória
+                logSQL(`UPDATE produtos SET nome='${nome}', preco_custo=${custo}, preco_venda=${venda} WHERE id='${id}';`, 'query');
+
+                const { data, error } = await supabase
+                    .from('produtos')
+                    .update({ nome, preco_custo: custo, preco_venda: venda })
+                    .eq('id', id)
+                    .select()
+                    .single();
+
+                if (error) {
+                    console.error('[Produtos] Erro ao atualizar:', error);
+                    logSQL(`Erro ao atualizar produto: ${error.message}`, 'error');
+                    showDBErrorDialog(error.code || 'ERROR', 'produtos', error.message);
+                    if (btnSave) btnSave.disabled = false;
+                    return;
+                }
+
+                const prod = DB.produtos.find(p => p.id === id);
+                if (prod) Object.assign(prod, data);
+                logSQL(`Produto '${nome}' atualizado com sucesso.`, 'success');
+            } else {
+                // Insert real via Supabase — antes só simulava em memória com id fake
+                // 'p_<timestamp>' que nunca existia na tabela real.
+                logSQL(`INSERT INTO produtos (nome, preco_custo, preco_venda) VALUES ('${nome}', ${custo}, ${venda});`, 'query');
+
+                const { data, error } = await supabase
+                    .from('produtos')
+                    .insert([{ nome, preco_custo: custo, preco_venda: venda }])
+                    .select()
+                    .single();
+
+                if (error) {
+                    console.error('[Produtos] Erro ao cadastrar:', error);
+                    logSQL(`Erro ao cadastrar produto: ${error.message}`, 'error');
+                    showDBErrorDialog(error.code || 'ERROR', 'produtos', error.message);
+                    if (btnSave) btnSave.disabled = false;
+                    return;
+                }
+
+                DB.produtos.push(data);
+                logSQL(`Produto '${nome}' cadastrado com sucesso (ID: ${data.id}).`, 'success');
+            }
+
+            if (btnSave) btnSave.disabled = false;
             formManageProduct.reset();
             document.getElementById('prod-edit-id').value = '';
             document.getElementById('btn-save-product').innerHTML = '<i class="fas fa-save"></i> Salvar Produto';
@@ -1786,6 +1878,21 @@ navItems.forEach(item => {
         const modalitiesTbody = document.querySelector('#modalities-table tbody');
         if (modalitiesTbody) {
             modalitiesTbody.innerHTML = '';
+
+            if (!DB.modalidades || DB.modalidades.length === 0) {
+                modalitiesTbody.innerHTML = `
+                    <tr>
+                        <td colspan="5">
+                            <div class="empty-state">
+                                <i class="fas fa-people-group icon-empty"></i>
+                                <h3>Nenhuma modalidade cadastrada</h3>
+                                <p>Ainda não há modalidades esportivas cadastradas neste módulo.</p>
+                                <button class="btn-primary" onclick="document.getElementById('mod-nome')?.focus()">+ Cadastrar Modalidade</button>
+                            </div>
+                        </td>
+                    </tr>`;
+            }
+
             DB.modalidades.forEach(mod => {
                 const manager = DB.usuarios.find(u => u.id === mod.coordenador_id);
                 const countAthletes = DB.atletas.filter(a => a.modalidade_id === mod.id).length;
@@ -1820,6 +1927,21 @@ navItems.forEach(item => {
         const athletesTbody = document.querySelector('#athletes-table tbody');
         if (athletesTbody) {
             athletesTbody.innerHTML = '';
+
+            if (!DB.atletas || DB.atletas.length === 0) {
+                athletesTbody.innerHTML = `
+                    <tr>
+                        <td colspan="6">
+                            <div class="empty-state">
+                                <i class="fas fa-person-running icon-empty"></i>
+                                <h3>Nenhum atleta cadastrado</h3>
+                                <p>Ainda não há atletas cadastrados neste módulo.</p>
+                                <button class="btn-primary" onclick="document.getElementById('enroll-name')?.focus()">+ Cadastrar Atleta</button>
+                            </div>
+                        </td>
+                    </tr>`;
+            }
+
             DB.atletas.forEach(athlete => {
                 const mod = DB.modalidades.find(m => m.id === athlete.modalidade_id);
                 const tr = document.createElement('tr');
@@ -2156,28 +2278,48 @@ navItems.forEach(item => {
     // Handler: Create Modality Form
     const formCreateModality = document.getElementById('form-create-modality');
     if (formCreateModality) {
-        formCreateModality.addEventListener('submit', (e) => {
+        formCreateModality.addEventListener('submit', async (e) => {
             e.preventDefault();
             const nome = document.getElementById('mod-nome').value;
             const coordId = document.getElementById('mod-coordenador').value;
             const categoria = document.getElementById('mod-categoria').value;
-            
-            // Create a custom insertion to include the category!
-            logSQL(`INSERT INTO modalidades (nome, coordenador_id, categoria) VALUES ('${nome}', '${coordId}', '${categoria}');`, 'query');
-            const newId = 'm_' + Date.now();
-            DB.modalidades.push({ id: newId, nome: nome, coordenador_id: coordId || null, categoria: categoria });
-            logSQL(`Modalidade '${nome}' de categoria '${categoria}' cadastrada com sucesso.`, 'success');
-            
+
+            if (!nome) {
+                alert('Nome da modalidade é obrigatório!');
+                return;
+            }
+
+            // Nota: a tabela 'modalidades' no Supabase não possui coluna 'categoria'
+            // hoje — o valor do campo é mantido só na UI/local até uma migração
+            // adicionar essa coluna. Persistimos nome + coordenador_id de verdade.
+            logSQL(`INSERT INTO modalidades (nome, coordenador_id) VALUES ('${nome}', '${coordId}');`, 'query');
+
+            const { data, error } = await supabase
+                .from('modalidades')
+                .insert([{ id: crypto.randomUUID(), nome: nome, coordenador_id: coordId || null }])
+                .select()
+                .single();
+
+            if (error) {
+                console.error('[Modalidades] Erro ao cadastrar:', error);
+                logSQL(`Erro ao cadastrar modalidade: ${error.message}`, 'error');
+                showDBErrorDialog(error.code || 'ERROR', 'modalidades', error.message);
+                return;
+            }
+
+            DB.modalidades.push({ ...data, categoria: categoria || null });
+            logSQL(`Modalidade '${nome}' cadastrada com sucesso (ID: ${data.id}).`, 'success');
+
             // Reset fields
             document.getElementById('mod-nome').value = '';
             document.getElementById('mod-coordenador').value = '';
-            
+
             // Rebuild selects that depend on modalities
             const rosterModSelect = document.getElementById('roster-mod-select');
             if (rosterModSelect) rosterModSelect.removeAttribute('data-populated');
             const enrollModSelect = document.getElementById('enroll-mod-select');
             if (enrollModSelect) enrollModSelect.removeAttribute('data-populated');
-            
+
             refreshAllUI();
         });
     }
@@ -2187,7 +2329,7 @@ navItems.forEach(item => {
     if (btnEnrollAthlete) {
         // Remove old listener if double defined or just replace
         btnEnrollAthlete.replaceWith(btnEnrollAthlete.cloneNode(true));
-        document.getElementById('btn-enroll-athlete').addEventListener('click', () => {
+        document.getElementById('btn-enroll-athlete').addEventListener('click', async () => {
             const name = document.getElementById('enroll-name').value;
             const ra = document.getElementById('enroll-ra').value;
             const modId = document.getElementById('enroll-mod-select').value;
@@ -2197,17 +2339,29 @@ navItems.forEach(item => {
                 return;
             }
 
-            const newId = 'a_' + Date.now();
-            DB.atletas.push({
-                id: newId,
-                nome: name,
-                ra_matricula: ra,
-                modalidade_id: modId,
-                status_documentacao: 'Pendente' // Default is pending for Juridico approval
-            });
-
             logSQL(`INSERT INTO atletas (nome, ra_matricula, modalidade_id, status_documentacao) VALUES ('${name}', '${ra}', '${modId}', 'Pendente');`, 'query');
-            logSQL(`Atleta cadastrado com sucesso. Status inicial da documentação: 'Pendente'. Requer análise jurídica para homologação de elegibilidade desportiva (RN-ESP-01).`, 'success');
+
+            const { data, error } = await supabase
+                .from('atletas')
+                .insert([{
+                    id: crypto.randomUUID(),
+                    nome: name,
+                    ra_matricula: ra,
+                    modalidade_id: modId,
+                    status_documentacao: 'Pendente' // Default is pending for Juridico approval
+                }])
+                .select()
+                .single();
+
+            if (error) {
+                console.error('[Atletas] Erro ao cadastrar:', error);
+                logSQL(`Erro ao cadastrar atleta: ${error.message}`, 'error');
+                showDBErrorDialog(error.code || 'ERROR', 'atletas', error.message);
+                return;
+            }
+
+            DB.atletas.push(data);
+            logSQL(`Atleta cadastrado com sucesso (ID: ${data.id}). Status inicial da documentação: 'Pendente'. Requer análise jurídica para homologação de elegibilidade desportiva (RN-ESP-01).`, 'success');
 
             document.getElementById('enroll-name').value = '';
             document.getElementById('enroll-ra').value = '';
@@ -2273,6 +2427,20 @@ navItems.forEach(item => {
             if (filterVal === 'Todos') return true;
             return f.categoria_servico === filterVal;
         });
+
+        if (filteredSuppliers.length === 0) {
+            suppliersTbody.innerHTML = `
+                <tr>
+                    <td colspan="4">
+                        <div class="empty-state">
+                            <i class="fas fa-truck-loading icon-empty"></i>
+                            <h3>Nenhum fornecedor encontrado</h3>
+                            <p>${DB.fornecedores.length === 0 ? 'Ainda não há fornecedores cadastrados neste módulo.' : 'Nenhum fornecedor corresponde ao filtro selecionado.'}</p>
+                            <button class="btn-primary" onclick="document.getElementById('sup-nome')?.focus()">+ Cadastrar Fornecedor</button>
+                        </div>
+                    </td>
+                </tr>`;
+        }
 
         filteredSuppliers.forEach(f => {
             const tr = document.createElement('tr');
@@ -2350,9 +2518,9 @@ navItems.forEach(item => {
     // Event Handler: Create Supplier
     const formCreateSupplier = document.getElementById('form-create-supplier');
     if (formCreateSupplier) {
-        formCreateSupplier.addEventListener('submit', (e) => {
+        formCreateSupplier.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const ok = DB_Engine.insertFornecedor(
+            const ok = await DB_Engine.insertFornecedor(
                 document.getElementById('sup-nome').value,
                 document.getElementById('sup-contato').value,
                 document.getElementById('sup-telefone').value,
