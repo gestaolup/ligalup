@@ -23,13 +23,11 @@ window.initAuth = function (deps) {
         if (element) element.style.display = visible ? '' : 'none';
     };
     const showLogin = () => {
-        setVisible('app-loading', false);
         setVisible('app-wrapper', false);
         setVisible('login-screen', true);
     };
 
     // Nunca mostra a tela de login antes de a sessão ser verificada.
-    setVisible('app-loading', true);
     setVisible('login-screen', false);
     setVisible('app-wrapper', false);
 

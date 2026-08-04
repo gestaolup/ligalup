@@ -974,7 +974,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function openApp(user) {
         currentUser = user;
         window.currentUser = currentUser;
-        document.getElementById('app-loading').style.display = 'none';
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app-wrapper').style.display = '';
         
