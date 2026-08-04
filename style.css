@@ -1515,6 +1515,32 @@ option:hover {
     opacity: 1;
 }
 
+/* Matriz de modalidades do coordenador */
+.coordinator-modality-option {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 42px;
+    padding: 10px 12px;
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.025);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.coordinator-modality-option:hover {
+    border-color: var(--accent);
+    background: rgba(234, 88, 12, 0.08);
+}
+
+.coordinator-modality-option input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+}
+
 /* --- ESTILIZAÇÃO DO CALENDÁRIO DA PLATAFORMA --- */
 .calendar-grid-header {
     display: grid;
@@ -1589,6 +1615,9 @@ option:hover {
 .calendar-dot.dot-post {
     background-color: #ea580c; /* Laranja para postagem */
 }
+.calendar-dot.dot-activity {
+    background-color: #f59e0b;
+}
 .active-day .calendar-dot {
     background-color: #fff !important; /* Pontos brancos no dia ativo */
 }
@@ -1645,6 +1674,9 @@ option:hover {
 }
 .action-day-card.post-type {
     border-left: 3.5px solid #ea580c;
+}
+.action-day-card.activity-type {
+    border-left: 3.5px solid #f59e0b;
 }
 
 /* --- NOTIFICAÇÕES LIDAS E MINI-BOTÃO --- */

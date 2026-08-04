@@ -12,6 +12,7 @@
 
 window.initFinance = function(deps) {
     const {
+        supabase,
         getDB,
         getDBEngine,
         getCurrentUser,
@@ -26,9 +27,22 @@ window.initFinance = function(deps) {
     let selectedFinanceEventId = '';
 
     // RENDER 5: TREASURY (FINANCE MODULE)
-    function renderFinanceModule() {
+    async function renderFinanceModule() {
         const DB = getDB();
         const DB_Engine = getDBEngine();
+        const { data: lancamentos, error: lancamentosError } = await supabase
+            .from('lancamentos_financeiros')
+            .select('*')
+            .order('data_competencia', { ascending: false });
+
+        if (lancamentosError) {
+            console.error('[Financeiro] Erro ao carregar Livro-caixa:', lancamentosError);
+            alert(`Não foi possível carregar o Livro-caixa: ${lancamentosError.message}`);
+            return;
+        }
+
+        // Fonte única: registros manuais, eventos e pedidos vêm do Supabase.
+        DB.lancamentos_financeiros = lancamentos;
         const financeTbody = document.querySelector('#ledger-table tbody');
         if (financeTbody) {
             financeTbody.innerHTML = '';
@@ -53,7 +67,7 @@ window.initFinance = function(deps) {
                     <td><b>${record.categoria}</b></td>
                     <td>${formatCurrency(record.valor)}</td>
                     <td>
-                        <span class="badge ${record.status_conciliacao ? 'badge-success' : 'badge-secondary'}">
+                        <span class="badge ${record.status_conciliacao ? 'badge-success' : 'badge-warning'}">
                             ${record.status_conciliacao ? '<i class="fas fa-lock"></i> Conciliado' : '<i class="fas fa-clock"></i> Pendente'}
                         </span>
                     </td>
@@ -68,9 +82,11 @@ window.initFinance = function(deps) {
                                     Estornar
                                 </button>
                             `}
-                            <button class="btn btn-secondary btn-delete-lf" data-lf-id="${record.id}" style="padding:4px 8px; font-size:11px;">
-                                Excluir
-                            </button>
+                            ${!record.status_conciliacao ? `
+                                <button type="button" class="btn btn-secondary btn-deletar-lancamento" data-id="${record.id}" style="padding:4px 8px; font-size:11px;">
+                                    Excluir
+                                </button>
+                            ` : ''}
                         </div>
                     </td>
                 `;
@@ -91,9 +107,9 @@ window.initFinance = function(deps) {
 
             // Reconcile trigger button click (renders record imutável)
             document.querySelectorAll('.btn-reconcile').forEach(btn => {
-                btn.addEventListener('click', () => {
+                btn.addEventListener('click', async () => {
                     const lfId = btn.getAttribute('data-lf-id');
-                    DB_Engine.mutateFinanceRecord(lfId, 'update', { status_conciliacao: true });
+                    await conciliarLancamento(lfId);
                 });
             });
 
@@ -120,6 +136,67 @@ window.initFinance = function(deps) {
 
         // Render phase 4 event participants section
         renderEventParticipants();
+    }
+
+    async function conciliarLancamento(lancamentoId) {
+        const DB = getDB();
+        const record = DB.lancamentos_financeiros.find(item => item.id === lancamentoId);
+        if (!record || record.status_conciliacao) return;
+
+        const previousStatus = record.status_conciliacao;
+        record.status_conciliacao = true;
+        renderFinanceModule();
+
+        try {
+            const { data, error } = await supabase
+                .from('lancamentos_financeiros')
+                .update({ status_conciliacao: true })
+                .eq('id', lancamentoId)
+                .select()
+                .single();
+            if (error) throw error;
+
+            Object.assign(record, data);
+            logSQL(`UPDATE lancamentos_financeiros SET status_conciliacao = TRUE WHERE id = '${lancamentoId}';`, 'query');
+            alert('Lançamento financeiro conciliado com sucesso!');
+        } catch (error) {
+            record.status_conciliacao = previousStatus;
+            renderFinanceModule();
+            console.error('[Financeiro] Erro ao conciliar lançamento:', error);
+            alert('Erro na sincronização com o banco. A alteração foi desfeita.');
+        }
+    }
+
+    async function deletarLancamento(lancamentoId) {
+        if (!lancamentoId || !confirm('Deseja realmente remover este lançamento financeiro?')) return;
+
+        const { error } = await supabase
+            .from('lancamentos_financeiros')
+            .delete()
+            .eq('id', lancamentoId);
+
+        if (error) {
+            console.error('[Financeiro] Erro ao excluir lançamento:', error);
+            alert(`Não foi possível remover o lançamento financeiro: ${error.message}`);
+            return;
+        }
+
+        logSQL(`DELETE FROM lancamentos_financeiros WHERE id = '${lancamentoId}';`, 'query');
+        await window.syncDBFromSupabase();
+        refreshAllUI();
+        alert('Lançamento financeiro removido com sucesso.');
+    }
+
+    window.deletarLancamento = deletarLancamento;
+    window.conciliarLancamento = conciliarLancamento;
+
+    // Delegação evita que a troca do conteúdo da tabela remova o listener.
+    const ledgerTableBody = document.querySelector('#ledger-table tbody');
+    if (ledgerTableBody) {
+        ledgerTableBody.addEventListener('click', async (e) => {
+            const btnDelete = e.target.closest('.btn-deletar-lancamento');
+            if (btnDelete) await deletarLancamento(btnDelete.dataset.id);
+        });
     }
 
     // --- FUNCTION: RENDER EVENT PARTICIPANTS (Fase 4) ---
@@ -438,6 +515,7 @@ window.initFinance = function(deps) {
     window.FinanceModule = {
         renderFinanceModule,
         renderEventParticipants,
-        performEstorno
+        performEstorno,
+        conciliarLancamento
     };
 };

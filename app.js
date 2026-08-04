@@ -11,7 +11,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const SUPABASE_KEY = window.ENV.SUPABASE_KEY;
     
     // Inicializa o cliente do Supabase
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true
+        }
+    });
     // Expõe o cliente instanciado globalmente para uso pelos módulos externos (chat.js, etc.)
     window.supabaseClient = supabase;
     // ------------------------------------------------------------------------
@@ -22,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
         atletas: [], produtos: [], produto_variantes: [], calendario_editorial: [],
         cronograma_postagens: [], escalacoes: [], participantes_evento: [],
         lancamentos_financeiros: [], parceiros_patrocinadores: [], documentos_contratos: [],
-        logs_notificacoes: [], fornecedores: [], pedidos_compra: [], permissoes: [], notificacoes_config: [], chat_conversations: [
+        logs_notificacoes: [], fornecedores: [], pedidos_compra: [], coordenador_modalidades: [], permissoes: [], notificacoes_config: [], chat_conversations: [
             { id: 'conv-1', name: 'Geral LUP', type: 'Grupo', created_at: new Date().toISOString() }
         ],
         chat_participants: [], chat_messages: [], chat_attachments: []
@@ -179,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Central de Interceptação de Escrita (Falso SGBD Engine)
     const DB_Engine = {
         // Simula UPDATE em Eventos (RN-EV-01 & RN-EV-02)
-        updateEventStatus: function(eventId, newStatus) {
+        updateEventStatus: async function(eventId, newStatus) {
             const event = DB.eventos.find(e => e.id === eventId);
             if (!event) return false;
 
@@ -221,9 +227,22 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Realiza a alteração do evento (Commit Parcial)
-            event.status_aprovacao = newStatus;
+            const { data: updatedEvent, error: updateError } = await supabase
+                .from('eventos')
+                .update({ status_aprovacao: newStatus })
+                .eq('id', eventId)
+                .select()
+                .single();
+
+            if (updateError) {
+                console.error('[Eventos] Erro ao atualizar status:', updateError);
+                logSQL(`Erro ao atualizar status do evento: ${updateError.message}`, 'error');
+                alert(`Não foi possível atualizar o status do evento: ${updateError.message}`);
+                return false;
+            }
+
+            Object.assign(event, updatedEvent);
             logSQL(`Event status committed: '${oldStatus}' -> '${newStatus}'`, 'success');
-            supabase.from('eventos').update({status_aprovacao: newStatus}).eq('id', eventId).then(({error}) => { if(error) console.error(error); });
 
             // --- TRIGGER NOTIFICAÇÃO: Solicitação de Verba (SOLICITACAO_VERBA) ---
             if (newStatus === 'Aguardando Tesouraria') {
@@ -368,7 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         // Simula UPDATE em Atletas (RN-ESP-01)
-        updateAthleteDocStatus: function(athleteId, newStatus) {
+        updateAthleteDocStatus: async function(athleteId, newStatus) {
             const athlete = DB.atletas.find(a => a.id === athleteId);
             if (!athlete) return false;
 
@@ -389,7 +408,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 return false;
             }
 
-            athlete.status_documentacao = newStatus;
+            const { data, error } = await supabase
+                .from('atletas')
+                .update({ status_documentacao: newStatus })
+                .eq('id', athleteId)
+                .select()
+                .single();
+
+            if (error) {
+                console.error('[Atletas] Erro ao atualizar status documental:', error);
+                logSQL(`Erro ao atualizar status documental: ${error.message}`, 'error');
+                alert(`Não foi possível atualizar a documentação do atleta: ${error.message}`);
+                return false;
+            }
+
+            Object.assign(athlete, data);
             logSQL(`Athlete document status updated: '${oldStatus}' -> '${newStatus}'`, 'success');
 
             // --- TRIGGER NOTIFICAÇÃO: Atleta Irregular (ATLETA_BARRADO) ---
@@ -632,35 +665,52 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         // --- MÉTODOS DE MARKETING (Fase 4) ---
-        insertCronogramaPostagem: function(eventoId, plataforma, tipo_conteudo, data_publicacao, descricao) {
+        insertCronogramaPostagem: async function(eventoId, plataforma, tipo_conteudo, data_publicacao, descricao) {
             logSQL(`INSERT INTO cronograma_postagens (evento_id, plataforma, tipo_conteudo, data_publicacao, descricao, status) VALUES ('${eventoId}', '${plataforma}', '${tipo_conteudo}', '${data_publicacao}', '${descricao}', 'Agendado');`, 'query');
-            const newId = 'cp_' + Date.now();
-            DB.cronograma_postagens.push({
-                id: newId,
+            const { data, error } = await supabase.from('cronograma_postagens').insert([{
                 evento_id: eventoId,
-                plataforma: plataforma,
-                tipo_conteudo: tipo_conteudo,
-                data_publicacao: data_publicacao.replace('T', ' '),
-                descricao: descricao,
+                plataforma,
+                tipo_conteudo,
+                data_publicacao,
+                descricao,
                 status: 'Agendado'
-            });
-            logSQL(`Postagem agendada com sucesso (ID: ${newId}).`, 'success');
+            }]).select().single();
+            if (error) {
+                console.error('[Marketing] Erro ao agendar postagem:', error);
+                alert(`Não foi possível agendar a postagem: ${error.message}`);
+                return false;
+            }
+            DB.cronograma_postagens.push(data);
+            logSQL(`Postagem agendada com sucesso (ID: ${data.id}).`, 'success');
             refreshAllUI();
-            return newId;
+            return data.id;
         },
-        updateCronogramaPostagemStatus: function(postId, status) {
+        updateCronogramaPostagemStatus: async function(postId, status) {
             const post = DB.cronograma_postagens.find(p => p.id === postId);
             if (!post) return false;
             logSQL(`UPDATE cronograma_postagens SET status = '${status}' WHERE id = '${postId}';`, 'query');
-            post.status = status;
+            const { data, error } = await supabase.from('cronograma_postagens')
+                .update({ status }).eq('id', postId).select().single();
+            if (error) {
+                console.error('[Marketing] Erro ao atualizar postagem:', error);
+                alert(`Não foi possível atualizar a postagem: ${error.message}`);
+                return false;
+            }
+            Object.assign(post, data);
             logSQL(`Status da postagem '${postId}' atualizado para '${status}'.`, 'success');
             refreshAllUI();
             return true;
         },
-        deleteCronogramaPostagem: function(postId) {
+        deleteCronogramaPostagem: async function(postId) {
             const idx = DB.cronograma_postagens.findIndex(p => p.id === postId);
             if (idx === -1) return false;
             logSQL(`DELETE FROM cronograma_postagens WHERE id = '${postId}';`, 'query');
+            const { error } = await supabase.from('cronograma_postagens').delete().eq('id', postId);
+            if (error) {
+                console.error('[Marketing] Erro ao excluir postagem:', error);
+                alert(`Não foi possível excluir a postagem: ${error.message}`);
+                return false;
+            }
             DB.cronograma_postagens.splice(idx, 1);
             logSQL(`Postagem '${postId}' removida com sucesso.`, 'success');
             refreshAllUI();
@@ -853,7 +903,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'produtos', 'produto_variantes', 'calendario_editorial', 'cronograma_postagens',
             'escalacoes', 'participantes_evento', 'lancamentos_financeiros',
             'parceiros_patrocinadores', 'documentos_contratos', 'logs_notificacoes',
-            'fornecedores',
+            'fornecedores', 'coordenador_modalidades',
             // Sprint 4 — Supply Chain: tabelas do módulo de Pedidos de Compra
             'pedidos_compra', 'pedidos_compra_itens', 'log_recebimentos',
             'chat_conversations', 'chat_participants', 'chat_messages', 'diretorias',
@@ -905,7 +955,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Fire-and-forget intencional: o seed não deve bloquear o restante do fluxo.
                 // Erros são capturados via .catch() explícito (equivalente ao .then() anterior).
                 supabase.from('chat_conversations').upsert(seedConv)
-                    .catch(err => console.warn('[Sync] Erro ao fazer seed do Geral LUP:', err));
+                    .then(function(r){ if(r.error) console.warn('[Sync] Erro ao fazer seed do Geral LUP:', r.error); });
             }
 
             console.log('Sincronização concluída! chat_conversations:', DB.chat_conversations.length);
@@ -924,6 +974,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function openApp(user) {
         currentUser = user;
         window.currentUser = currentUser;
+        document.getElementById('app-loading').style.display = 'none';
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app-wrapper').style.display = '';
         
@@ -985,6 +1036,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Inicializa o módulo financeiro (finance.js) ---
     window.initFinance({
+        supabase,
         getDB:          () => DB,
         getDBEngine:    () => DB_Engine,
         getCurrentUser: () => currentUser,
@@ -1080,28 +1132,94 @@ navItems.forEach(item => {
     });
 
     // RENDER 1: EXECUTIVE DASHBOARD
-    function renderExecutiveDashboard() {
-        // KPIs calculations
-        const totalCash = DB.lancamentos_financeiros.reduce((sum, item) => {
-            return item.tipo === 'Entrada' ? sum + item.valor : sum - item.valor;
-        }, 0);
-        
-        const countEvents = DB.eventos.filter(e => e.status_aprovacao === 'Aguardando Tesouraria').length;
-        
-        const prazo_alerta = window.ConfigModule ? window.ConfigModule.globalConfig.prazo_alerta_contratos : 30;
-        const countContracts = DB.documentos_contratos.filter(dc => {
-            if (!dc.data_vencimento) return false;
-            const diffDays = Math.ceil((new Date(dc.data_vencimento) - new Date()) / (1000 * 60 * 60 * 24));
-            return diffDays >= 0 && diffDays <= prazo_alerta;
-        }).length;
-        
-        const countAtletasIrregulares = DB.atletas.filter(a => a.status_documentacao === 'Pendente' || a.status_documentacao === 'Rejeitado').length;
+    let dashboardRenderVersion = 0;
+    async function renderExecutiveDashboard() {
+        const version = ++dashboardRenderVersion;
+        const safeQuery = async (table, columns) => {
+            try {
+                const { data, error } = await supabase.from(table).select(columns);
+                if (error) throw error;
+                return data || [];
+            } catch (error) {
+                console.warn(`[Dashboard] Dados indisponíveis em ${table}:`, error.message);
+                return [];
+            }
+        };
+        const formatCurrency = value => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const setText = (id, value) => { const element = document.getElementById(id); if (element) element.textContent = value; };
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
-        // Populate KPI elements
-        document.getElementById('kpi-saldo-caixa').innerText = `R$ ${totalCash.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        document.getElementById('kpi-eventos-pendentes').innerText = countEvents;
-        document.getElementById('kpi-contratos-vencer').innerText = countContracts;
-        document.getElementById('kpi-atletas-irregulares').innerText = countAtletasIrregulares;
+        const [financial, athletes, modalities, orders, events, products, variants, partners, contracts] = await Promise.all([
+            safeQuery('lancamentos_financeiros', 'tipo,valor,data_competencia'),
+            safeQuery('atletas', 'id,status_documentacao,modalidade_id'),
+            safeQuery('modalidades', 'id,nome'),
+            safeQuery('pedidos_compra', 'id,status,data_prevista_entrega'),
+            safeQuery('eventos', 'id,nome,data_evento,status_aprovacao,tipo'),
+            safeQuery('produtos', 'id,nome'),
+            safeQuery('produto_variantes', 'produto_id,estoque_atual'),
+            safeQuery('parceiros_patrocinadores', 'id,status_funil'),
+            safeQuery('documentos_contratos', 'id,titulo,tipo_documento,arquivo_url,data_vencimento')
+        ]);
+        if (version !== dashboardRenderVersion) return;
+
+        const totalCash = financial.reduce((total, item) => total + (item.tipo === 'Entrada' ? Number(item.valor || 0) : -Number(item.valor || 0)), 0);
+        const monthly = financial.filter(item => new Date(item.data_competencia) >= monthStart).reduce((acc, item) => {
+            acc[item.tipo === 'Entrada' ? 'income' : 'expense'] += Number(item.valor || 0);
+            return acc;
+        }, { income: 0, expense: 0 });
+        const next15Days = new Date(today);
+        next15Days.setDate(next15Days.getDate() + 15);
+        const scheduledFinancialItems = financial.filter(item => {
+            const date = new Date(item.data_competencia);
+            return date >= today && date <= next15Days;
+        }).length;
+        const pendingDocuments = athletes.filter(item => String(item.status_documentacao || '').toLowerCase() === 'pendente').length;
+        const athletesByModality = athletes.reduce((distribution, athlete) => {
+            distribution[athlete.modalidade_id] = (distribution[athlete.modalidade_id] || 0) + 1;
+            return distribution;
+        }, {});
+        const pendingOrders = orders.filter(item => ['aguardando aprovação', 'aguardando aprovacao', 'pendente'].includes(String(item.status || '').toLowerCase())).length;
+        const upcomingEvents = events.filter(item => item.data_evento && new Date(item.data_evento) >= today).sort((a, b) => new Date(a.data_evento) - new Date(b.data_evento)).slice(0, 5);
+        const nextEvent = upcomingEvents[0];
+        const criticalVariants = variants.filter(item => Number(item.estoque_atual || 0) <= 5);
+        const productNameById = new Map(products.map(item => [item.id, item.nome]));
+        const activeProposals = partners.filter(item => ['prospecção', 'proposta', 'proposta gerada', 'negociação'].includes(String(item.status_funil || '').toLowerCase())).length;
+        const unsignedContracts = contracts.filter(item => !item.arquivo_url || /pendente|assinatura/i.test(item.tipo_documento || '')).length;
+
+        setText('kpi-saldo-caixa', formatCurrency(totalCash));
+        setText('kpi-financeiro-mes', `Receitas ${formatCurrency(monthly.income)} · Despesas ${formatCurrency(monthly.expense)}`);
+        setText('kpi-atletas-ativos', athletes.length);
+        setText('kpi-atletas-pendentes', `${pendingDocuments} documento${pendingDocuments === 1 ? '' : 's'} pendente${pendingDocuments === 1 ? '' : 's'}`);
+        document.getElementById('kpi-atletas-ativos')?.setAttribute('title', Object.entries(athletesByModality).map(([id, count]) => `${modalities.find(item => item.id === id)?.nome || 'Sem modalidade'}: ${count}`).join(' | '));
+        setText('kpi-compras-pendentes', pendingOrders);
+        setText('kpi-proximo-evento', nextEvent ? nextEvent.nome : 'Sem eventos');
+        setText('kpi-proximo-evento-data', nextEvent ? new Date(nextEvent.data_evento).toLocaleDateString('pt-BR', { dateStyle: 'medium' }) : 'Sem agendamentos futuros');
+
+        const alertsList = document.getElementById('dashboard-alerts-list');
+        if (alertsList) {
+            const alerts = [
+                [pendingDocuments, 'fas fa-file-medical', 'documentos de atletas aguardam validação'],
+                [pendingOrders, 'fas fa-shopping-cart', 'pedidos de compra aguardam liberação'],
+                [scheduledFinancialItems, 'fas fa-calendar-dollar', 'lançamentos financeiros previstos para os próximos 15 dias'],
+                [criticalVariants.length, 'fas fa-exclamation-triangle', 'itens com estoque crítico'],
+                [unsignedContracts, 'fas fa-file-signature', 'contratos pendentes de assinatura'],
+                [activeProposals, 'fas fa-handshake', 'propostas de parceria em andamento']
+            ].filter(([count]) => count > 0);
+            alertsList.innerHTML = alerts.length ? alerts.map(([count, icon, label]) => `<div style="display:flex; align-items:center; gap:10px; padding:10px; border:1px solid var(--border-glass); border-radius:var(--radius-sm);"><i class="${icon}" style="color:var(--warning);"></i><span style="font-size:13px;"><b>${count}</b> ${label}</span></div>`).join('') : '<p style="color:var(--text-secondary); font-size:13px; margin:0;">Nenhuma pendência operacional no momento.</p>';
+        }
+
+        const eventsList = document.getElementById('dashboard-upcoming-events');
+        if (eventsList) {
+            eventsList.innerHTML = upcomingEvents.length ? upcomingEvents.map(event => `<div style="display:flex; justify-content:space-between; gap:12px; padding:10px; border:1px solid var(--border-glass); border-radius:var(--radius-sm);"><span style="font-size:13px;"><b>${escapeSportsHtml(event.nome)}</b><br><small style="color:var(--text-secondary);">${event.tipo || 'Evento'} · ${event.status_aprovacao || 'Sem status'}</small></span><span class="badge badge-secondary">${new Date(event.data_evento).toLocaleDateString('pt-BR')}</span></div>`).join('') : '<p style="color:var(--text-secondary); font-size:13px; margin:0;">Sem eventos ou jogos futuros cadastrados.</p>';
+        }
+
+        const stockList = document.getElementById('dashboard-stock-list');
+        setText('dashboard-stock-summary', variants.length ? `${criticalVariants.length} crítico(s) de ${variants.length} variantes` : 'Sem dados cadastrados');
+        if (stockList) {
+            stockList.innerHTML = criticalVariants.length ? criticalVariants.map(item => `<span class="badge badge-warning" style="padding:8px 10px;">${escapeSportsHtml(productNameById.get(item.produto_id) || 'Produto')} · ${item.estoque_atual} un.</span>`).join('') : (products.length ? '<span style="font-size:13px; color:var(--success);">Estoque sem itens críticos.</span>' : '<span style="font-size:13px; color:var(--text-secondary);">Cadastre produtos e variantes para acompanhar o estoque.</span>');
+        }
 
         if (window.UserAccess) window.UserAccess.renderAccessModule();
 
@@ -1375,8 +1493,8 @@ navItems.forEach(item => {
             // Click listener for Approve Button (testing triggers & permissions)
             const approveBtn = card.querySelector('.btn-approve-event');
             if (approveBtn) {
-                approveBtn.addEventListener('click', () => {
-                    DB_Engine.updateEventStatus(evt.id, 'Aprovado');
+                approveBtn.addEventListener('click', async () => {
+                    await DB_Engine.updateEventStatus(evt.id, 'Aprovado');
                 });
             }
 
@@ -1396,10 +1514,10 @@ navItems.forEach(item => {
             colBody.addEventListener('dragover', (e) => {
                 e.preventDefault();
             });
-            colBody.addEventListener('drop', (e) => {
+            colBody.addEventListener('drop', async (e) => {
                 e.preventDefault();
                 const evtId = e.dataTransfer.getData('text/plain');
-                DB_Engine.updateEventStatus(evtId, status);
+                await DB_Engine.updateEventStatus(evtId, status);
             });
         });
     }
@@ -1422,7 +1540,7 @@ navItems.forEach(item => {
     }
 
     // Event Handler: Create Event Form
-    document.getElementById('form-create-event').addEventListener('submit', (e) => {
+    document.getElementById('form-create-event').addEventListener('submit', async (e) => {
         e.preventDefault();
         const nome = document.getElementById('evt-nome').value;
         const data = document.getElementById('evt-data').value;
@@ -1431,9 +1549,7 @@ navItems.forEach(item => {
         const tipo = document.getElementById('evt-tipo').value;
         const taxaBase = parseFloat(document.getElementById('evt-taxa-base').value) || 0;
 
-        const newId = 'e_' + Date.now();
-        const event = {
-            id: newId,
+        const eventPayload = {
             nome: nome,
             data_evento: data.replace('T', ' '),
             local: local,
@@ -1444,6 +1560,16 @@ navItems.forEach(item => {
             criador_id: currentUser.id
         };
 
+        const { data: event, error: eventError } = await supabase
+            .from('eventos')
+            .insert([eventPayload])
+            .select()
+            .single();
+        if (eventError) {
+            console.error('[Eventos] Erro ao criar evento:', eventError);
+            alert(`Não foi possível criar o evento: ${eventError.message}`);
+            return;
+        }
         DB.eventos.push(event);
         logSQL(`INSERT INTO eventos (nome, data_evento, local, orcamento_previsto, status_aprovacao, tipo, valor_taxa_base, criador_id) VALUES ('${nome}', '${data}', '${local}', ${orcamento}, 'Rascunho', '${tipo}', ${taxaBase}, '${currentUser.id}');`, 'query');
         logSQL(`Event successfully created in state 'Rascunho'. Please drag or push it to 'Aguardando Tesouraria' to request funds.`, 'success');
@@ -1471,7 +1597,7 @@ navItems.forEach(item => {
     });
 
     // RENDER: MARKETING MODULE (Fase 4)
-    function renderMarketingModule() {
+    async function renderMarketingModule() {
         const mktEvtSelect = document.getElementById('mkt-evento-select');
         if (!mktEvtSelect) return;
 
@@ -1479,7 +1605,15 @@ navItems.forEach(item => {
         const prevSelectValue = selectedMarketingEventId;
         mktEvtSelect.innerHTML = '<option value="">Selecione um Evento...</option>';
         
-        const approvedEvents = DB.eventos.filter(e => e.status_aprovacao === 'Aprovado');
+        const { data: approvedEvents, error: approvedEventsError } = await supabase
+            .from('eventos')
+            .select('*')
+            .eq('status_aprovacao', 'Aprovado');
+        if (approvedEventsError) {
+            console.error('[Marketing] Erro ao buscar eventos aprovados:', approvedEventsError);
+            alert(`Não foi possível carregar os eventos aprovados: ${approvedEventsError.message}`);
+            return;
+        }
         approvedEvents.forEach(e => {
             const opt = document.createElement('option');
             opt.value = e.id;
@@ -1497,9 +1631,9 @@ navItems.forEach(item => {
 
         // Setup change listener once
         if (!mktEvtSelect.dataset.listener) {
-            mktEvtSelect.addEventListener('change', (e) => {
+            mktEvtSelect.addEventListener('change', async (e) => {
                 selectedMarketingEventId = e.target.value;
-                renderMarketingModule();
+                await renderMarketingModule();
             });
             mktEvtSelect.dataset.listener = 'true';
         }
@@ -1520,7 +1654,16 @@ navItems.forEach(item => {
         const tbody = document.querySelector('#mkt-posts-table tbody');
         if (tbody) {
             tbody.innerHTML = '';
-            const posts = DB.cronograma_postagens.filter(p => p.evento_id === selectedMarketingEventId);
+            const { data: posts, error: postsError } = await supabase
+                .from('cronograma_postagens')
+                .select('*')
+                .eq('evento_id', selectedMarketingEventId)
+                .order('data_publicacao');
+            if (postsError) {
+                console.error('[Marketing] Erro ao buscar postagens:', postsError);
+                alert(`Não foi possível carregar as postagens: ${postsError.message}`);
+                return;
+            }
             
             if (posts.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-secondary);">Nenhuma postagem agendada para este evento.</td></tr>';
@@ -1567,24 +1710,24 @@ navItems.forEach(item => {
 
                 // Attach button click listeners
                 tbody.querySelectorAll('.btn-publish-post').forEach(btn => {
-                    btn.addEventListener('click', () => {
+                    btn.addEventListener('click', async () => {
                         const id = btn.getAttribute('data-post-id');
-                        DB_Engine.updateCronogramaPostagemStatus(id, 'Publicado');
+                        await DB_Engine.updateCronogramaPostagemStatus(id, 'Publicado');
                     });
                 });
 
                 tbody.querySelectorAll('.btn-cancel-post').forEach(btn => {
-                    btn.addEventListener('click', () => {
+                    btn.addEventListener('click', async () => {
                         const id = btn.getAttribute('data-post-id');
-                        DB_Engine.updateCronogramaPostagemStatus(id, 'Cancelado');
+                        await DB_Engine.updateCronogramaPostagemStatus(id, 'Cancelado');
                     });
                 });
 
                 tbody.querySelectorAll('.btn-delete-post').forEach(btn => {
-                    btn.addEventListener('click', () => {
+                    btn.addEventListener('click', async () => {
                         const id = btn.getAttribute('data-post-id');
                         if (confirm('Tem certeza de que deseja excluir esta postagem? Esta ação é irreversível.')) {
-                            DB_Engine.deleteCronogramaPostagem(id);
+                            await DB_Engine.deleteCronogramaPostagem(id);
                         }
                     });
                 });
@@ -1595,7 +1738,7 @@ navItems.forEach(item => {
     // Event Handler: Create Marketing Schedule Post
     const formCreatePost = document.getElementById('form-create-post');
     if (formCreatePost) {
-        formCreatePost.addEventListener('submit', (e) => {
+        formCreatePost.addEventListener('submit', async (e) => {
             e.preventDefault();
             if (!selectedMarketingEventId) {
                 alert('Selecione um evento primeiro!');
@@ -1606,8 +1749,8 @@ navItems.forEach(item => {
             const data = document.getElementById('post-data').value;
             const desc = document.getElementById('post-descricao').value;
 
-            DB_Engine.insertCronogramaPostagem(selectedMarketingEventId, plataforma, tipo, data, desc);
-            formCreatePost.reset();
+            const postId = await DB_Engine.insertCronogramaPostagem(selectedMarketingEventId, plataforma, tipo, data, desc);
+            if (postId) formCreatePost.reset();
         });
     }
 
@@ -1800,6 +1943,7 @@ navItems.forEach(item => {
             const nome = document.getElementById('prod-nome').value;
             const custo = parseFloat(document.getElementById('prod-custo').value) || 0;
             const venda = parseFloat(document.getElementById('prod-venda').value) || 0;
+            const variantes = [...new Set(document.getElementById('prod-variantes').value.split(',').map(v => v.trim()).filter(Boolean))];
 
             if (!nome) {
                 showDBErrorDialog('23502 (Not Null Violation)', 'produtos.nome', 'O nome do produto é obrigatório.');
@@ -1851,6 +1995,12 @@ navItems.forEach(item => {
                 }
 
                 DB.produtos.push(data);
+                if (variantes.length) {
+                    const { data: novasVariantes, error: variantesError } = await supabase.from('produto_variantes')
+                        .insert(variantes.map(tamanho => ({ produto_id: data.id, tamanho, estoque_atual: 0 }))).select();
+                    if (variantesError) alert(`Produto salvo, mas não foi possível criar as variantes: ${variantesError.message}`);
+                    else DB.produto_variantes.push(...novasVariantes);
+                }
                 logSQL(`Produto '${nome}' cadastrado com sucesso (ID: ${data.id}).`, 'success');
             }
 
@@ -1872,8 +2022,49 @@ navItems.forEach(item => {
         });
     }
 
+    function isSportsRestrictedUser() {
+        return !!currentUser && ['Coordenador', 'Apoio'].includes(currentUser.cargo);
+    }
+
+    function getManagedSportsModalityIds(userId = currentUser?.id) {
+        if (!userId) return [];
+        return (DB.coordenador_modalidades || [])
+            .filter(link => link.usuario_id === userId)
+            .map(link => link.modalidade_id);
+    }
+
+    function getVisibleSportsModalities() {
+        const activeModalities = (DB.modalidades || []).filter(mod => mod.ativo !== false && mod.status !== false);
+        if (!isSportsRestrictedUser()) return activeModalities;
+        const managedIds = new Set(getManagedSportsModalityIds());
+        return activeModalities.filter(mod => managedIds.has(mod.id));
+    }
+
+    function showSportsToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `chat-toast ${type}`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2800);
+    }
+
+    function escapeSportsHtml(value) {
+        return String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+    }
+
+    function closeCoordinatorModal() {
+        document.getElementById('coordinator-modal-overlay')?.classList.remove('active');
+    }
+
     // RENDER 4: SPORTS & ATHLETES (Fase 4)
     function renderSportsModule() {
+        const restrictedUser = isSportsRestrictedUser();
+        const visibleModalities = getVisibleSportsModalities();
+        const managedIds = new Set(getManagedSportsModalityIds());
+
+        document.querySelector('[data-tab="esp-tab-modalidades"]')?.style.setProperty('display', restrictedUser ? 'none' : '');
+        document.querySelector('[data-tab="esp-tab-coordenadores"]')?.style.setProperty('display', restrictedUser ? 'none' : '');
+
         // Modalidades list
         const modalitiesTbody = document.querySelector('#modalities-table tbody');
         if (modalitiesTbody) {
@@ -1923,12 +2114,70 @@ navItems.forEach(item => {
             });
         }
 
+        // Coordinator assignments (exclusive to directors and administrators)
+        const coordinatorsTbody = document.querySelector('#coordinators-table tbody');
+        if (coordinatorsTbody) {
+            coordinatorsTbody.innerHTML = '';
+            const coordinators = (DB.usuarios || []).filter(user =>
+                user.status !== false && ['Coordenador', 'Apoio'].includes(user.cargo)
+            );
+
+            if (!coordinators.length) {
+                coordinatorsTbody.innerHTML = '<tr><td colspan="4"><div class="empty-state"><i class="fas fa-users-slash icon-empty"></i><h3>Nenhum coordenador ou apoio cadastrado</h3><p>Cadastre usuários com cargo Coordenador ou Apoio na Gestão de Acessos.</p></div></td></tr>';
+            }
+
+            coordinators.forEach(coordinator => {
+                const assignedModalities = (DB.coordenador_modalidades || [])
+                    .filter(link => link.usuario_id === coordinator.id)
+                    .map(link => DB.modalidades.find(mod => mod.id === link.modalidade_id))
+                    .filter(Boolean);
+                const badges = assignedModalities.length
+                    ? assignedModalities.map(mod => `<span class="badge badge-secondary">${escapeSportsHtml(mod.nome)}</span>`).join(' ')
+                    : '<span class="badge badge-warning">Sem modalidade atribuída</span>';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><b>${escapeSportsHtml(coordinator.nome)}</b><br><small style="color:var(--text-secondary)">${escapeSportsHtml(coordinator.cargo)}</small></td>
+                    <td>${escapeSportsHtml(coordinator.email || coordinator.contato || '—')}</td>
+                    <td style="display:flex; flex-wrap:wrap; gap:5px;">${badges}</td>
+                    <td><button class="btn btn-secondary btn-manage-coordinator" data-user-id="${coordinator.id}" style="padding:6px 10px; font-size:12px;"><i class="fas fa-pen"></i> Gerenciar Modalidades</button></td>`;
+                coordinatorsTbody.appendChild(tr);
+            });
+
+            coordinatorsTbody.querySelectorAll('.btn-manage-coordinator').forEach(btn => {
+                btn.addEventListener('click', () => openCoordinatorModal(btn.dataset.userId));
+            });
+        }
+
         // Athlete rows
         const athletesTbody = document.querySelector('#athletes-table tbody');
         if (athletesTbody) {
             athletesTbody.innerHTML = '';
 
-            if (!DB.atletas || DB.atletas.length === 0) {
+            const modalityFilter = document.getElementById('athlete-filter-modality');
+            const statusFilter = document.getElementById('athlete-filter-status');
+            if (modalityFilter) {
+                const selectedValue = modalityFilter.value;
+                modalityFilter.innerHTML = `<option value="">${restrictedUser ? 'Minhas Modalidades' : 'Todas as Modalidades'}</option>`;
+                visibleModalities.forEach(mod => modalityFilter.add(new Option(mod.nome, mod.id)));
+                modalityFilter.value = visibleModalities.some(mod => mod.id === selectedValue) ? selectedValue : '';
+                if (!modalityFilter.dataset.listener) {
+                    modalityFilter.addEventListener('change', renderSportsModule);
+                    modalityFilter.dataset.listener = 'true';
+                }
+            }
+            if (statusFilter && !statusFilter.dataset.listener) {
+                statusFilter.addEventListener('change', renderSportsModule);
+                statusFilter.dataset.listener = 'true';
+            }
+            const selectedModalityId = modalityFilter?.value || '';
+            const selectedStatus = statusFilter?.value || '';
+            const visibleAthletes = (DB.atletas || []).filter(athlete =>
+                (!restrictedUser || managedIds.has(athlete.modalidade_id)) &&
+                (!selectedModalityId || athlete.modalidade_id === selectedModalityId) &&
+                (!selectedStatus || athlete.status_documentacao === selectedStatus)
+            );
+
+            if (!visibleAthletes.length) {
                 athletesTbody.innerHTML = `
                     <tr>
                         <td colspan="6">
@@ -1942,7 +2191,7 @@ navItems.forEach(item => {
                     </tr>`;
             }
 
-            DB.atletas.forEach(athlete => {
+            visibleAthletes.forEach(athlete => {
                 const mod = DB.modalidades.find(m => m.id === athlete.modalidade_id);
                 const tr = document.createElement('tr');
                 
@@ -1981,16 +2230,16 @@ navItems.forEach(item => {
 
             // Doc approval button click listeners (tests RN-ESP-01)
             document.querySelectorAll('.btn-approve-doc').forEach(btn => {
-                btn.addEventListener('click', () => {
+                btn.addEventListener('click', async () => {
                     const athId = btn.getAttribute('data-ath-id');
-                    DB_Engine.updateAthleteDocStatus(athId, 'Aprovado');
+                    await DB_Engine.updateAthleteDocStatus(athId, 'Aprovado');
                 });
             });
 
             document.querySelectorAll('.btn-reject-doc').forEach(btn => {
-                btn.addEventListener('click', () => {
+                btn.addEventListener('click', async () => {
                     const athId = btn.getAttribute('data-ath-id');
-                    DB_Engine.updateAthleteDocStatus(athId, 'Rejeitado');
+                    await DB_Engine.updateAthleteDocStatus(athId, 'Rejeitado');
                 });
             });
 
@@ -2009,7 +2258,7 @@ navItems.forEach(item => {
         const modSelect = document.getElementById('enroll-mod-select');
         if (modSelect) {
             modSelect.innerHTML = '<option value="">Selecione...</option>';
-            DB.modalidades.forEach(m => {
+            visibleModalities.forEach(m => {
                 const opt = document.createElement('option');
                 opt.value = m.id;
                 opt.innerText = m.nome;
@@ -2021,7 +2270,7 @@ navItems.forEach(item => {
         const coordSelect = document.getElementById('mod-coordenador');
         if (coordSelect) {
             coordSelect.innerHTML = '<option value="">Selecione...</option>';
-            DB.usuarios.forEach(u => {
+            DB.usuarios.filter(u => ['Coordenador', 'Apoio'].includes(u.cargo)).forEach(u => {
                 const opt = document.createElement('option');
                 opt.value = u.id;
                 opt.innerText = `${u.nome} (${u.cargo} / ${u.diretoria})`;
@@ -2032,6 +2281,80 @@ navItems.forEach(item => {
         // --- ROSTER BUILDER RENDERING ---
         renderRosterBuilder();
     }
+
+    function openCoordinatorModal(userId) {
+        const coordinator = (DB.usuarios || []).find(user => user.id === userId);
+        const overlay = document.getElementById('coordinator-modal-overlay');
+        const title = document.getElementById('coordinator-modal-title');
+        const hiddenId = document.getElementById('coordinator-modal-user-id');
+        const list = document.getElementById('coordinator-modal-modalities');
+        if (!coordinator || !overlay || !title || !hiddenId || !list) return;
+
+        const selectedIds = new Set(getManagedSportsModalityIds(userId));
+        title.innerHTML = `<i class="fas fa-users-cog"></i> Atribuir Modalidades - ${escapeSportsHtml(coordinator.nome)}`;
+        hiddenId.value = userId;
+        list.innerHTML = '';
+
+        const activeModalities = (DB.modalidades || []).filter(mod => mod.ativo !== false && mod.status !== false);
+        if (!activeModalities.length) {
+            list.innerHTML = '<p style="grid-column:1/-1; color:var(--text-secondary); margin:0;">Nenhuma modalidade ativa está disponível.</p>';
+        }
+        activeModalities.forEach(modality => {
+            const label = document.createElement('label');
+            label.className = 'coordinator-modality-option';
+            label.innerHTML = `<input type="checkbox" value="${modality.id}" ${selectedIds.has(modality.id) ? 'checked' : ''}><span>${escapeSportsHtml(modality.nome)}</span>`;
+            list.appendChild(label);
+        });
+        overlay.classList.add('active');
+    }
+
+    async function saveCoordinatorModalities() {
+        const userId = document.getElementById('coordinator-modal-user-id')?.value;
+        const saveButton = document.getElementById('btn-save-coordinator-modal');
+        if (!userId || !saveButton) return;
+
+        const selectedIds = [...document.querySelectorAll('#coordinator-modal-modalities input:checked')].map(input => input.value);
+        const currentIds = getManagedSportsModalityIds(userId);
+        const selectedSet = new Set(selectedIds);
+        const idsToRemove = currentIds.filter(id => !selectedSet.has(id));
+        const rowsToUpsert = selectedIds.map(modalidade_id => ({ usuario_id: userId, modalidade_id }));
+
+        saveButton.disabled = true;
+        saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+        try {
+            const operations = [];
+            if (idsToRemove.length) {
+                operations.push(supabase.from('coordenador_modalidades').delete().eq('usuario_id', userId).in('modalidade_id', idsToRemove));
+            }
+            if (rowsToUpsert.length) {
+                operations.push(supabase.from('coordenador_modalidades').upsert(rowsToUpsert, { onConflict: 'usuario_id,modalidade_id' }));
+            }
+            const results = await Promise.all(operations);
+            const failure = results.find(result => result.error)?.error;
+            if (failure) throw failure;
+
+            // Atualiza imediatamente a lista e a visão eventualmente restrita do próprio usuário.
+            DB.coordenador_modalidades = (DB.coordenador_modalidades || [])
+                .filter(link => link.usuario_id !== userId)
+                .concat(rowsToUpsert.map(row => ({ id: `${row.usuario_id}-${row.modalidade_id}`, ...row })));
+            closeCoordinatorModal();
+            refreshAllUI();
+            showSportsToast('Modalidades do coordenador atualizadas com sucesso.');
+        } catch (error) {
+            console.error('[Coordenadores] Erro ao salvar modalidades:', error);
+            showSportsToast(`Não foi possível salvar as modalidades: ${error.message || 'tente novamente.'}`, 'error');
+        } finally {
+            saveButton.disabled = false;
+            saveButton.innerHTML = '<i class="fas fa-save"></i> Salvar Modalidades';
+        }
+    }
+
+    document.getElementById('btn-close-coordinator-modal')?.addEventListener('click', closeCoordinatorModal);
+    document.getElementById('btn-cancel-coordinator-modal')?.addEventListener('click', closeCoordinatorModal);
+    document.getElementById('coordinator-modal-overlay')?.addEventListener('click', event => {
+        if (event.target.id === 'coordinator-modal-overlay') closeCoordinatorModal();
+    });
+    document.getElementById('btn-save-coordinator-modal')?.addEventListener('click', saveCoordinatorModalities);
 
     // --- FUNCTION: RENDER ROSTER BUILDER ---
     function renderRosterBuilder() {
@@ -2055,7 +2378,7 @@ navItems.forEach(item => {
         // Populate modality selector
         if (!rosterModSelect.dataset.populated) {
             rosterModSelect.innerHTML = '<option value="">Selecione uma Modalidade...</option>';
-            DB.modalidades.forEach(m => {
+            getVisibleSportsModalities().forEach(m => {
                 const opt = document.createElement('option');
                 opt.value = m.id;
                 opt.innerText = m.nome;
@@ -2333,9 +2656,16 @@ navItems.forEach(item => {
             const name = document.getElementById('enroll-name').value;
             const ra = document.getElementById('enroll-ra').value;
             const modId = document.getElementById('enroll-mod-select').value;
+            const contact = document.getElementById('enroll-contact').value.trim();
+            const email = document.getElementById('enroll-email').value.trim();
 
             if (!name || !ra || !modId) {
                 alert('Preencha todos os campos do cadastro do atleta!');
+                return;
+            }
+
+            if (isSportsRestrictedUser() && !getManagedSportsModalityIds().includes(modId)) {
+                showSportsToast('Você só pode cadastrar atletas nas modalidades atribuídas a você.', 'error');
                 return;
             }
 
@@ -2347,6 +2677,8 @@ navItems.forEach(item => {
                     id: crypto.randomUUID(),
                     nome: name,
                     ra_matricula: ra,
+                    contato: contact || null,
+                    email: email || null,
                     modalidade_id: modId,
                     status_documentacao: 'Pendente' // Default is pending for Juridico approval
                 }])
@@ -2365,6 +2697,8 @@ navItems.forEach(item => {
 
             document.getElementById('enroll-name').value = '';
             document.getElementById('enroll-ra').value = '';
+            document.getElementById('enroll-contact').value = '';
+            document.getElementById('enroll-email').value = '';
             refreshAllUI();
         });
     }
@@ -2453,7 +2787,8 @@ navItems.forEach(item => {
             suppliersTbody.appendChild(tr);
         });
 
-        // -- Tabela de Pedidos de Compra --
+        // -- Tabela de Pedidos de Compra (legado desativado; compras.js é a fonte única) --
+        /*
         const ordersTbody = document.querySelector('#orders-table tbody');
         if (!ordersTbody) return;
         ordersTbody.innerHTML = '';
@@ -2465,7 +2800,7 @@ navItems.forEach(item => {
                 <td><b>${produto ? produto.nome : '—'}</b> <span class="badge badge-secondary" style="font-size:11px;">${pc.tamanho}</span></td>
                 <td>${pc.quantidade}</td>
                 <td>${fornecedor ? fornecedor.nome : '—'}</td>
-                <td>${pc.data_previsao || '—'}</td>
+                <td>${pc.data_prevista_entrega || pc.data_previsao || '—'}</td>
                 <td>
                     <span class="badge ${pc.status === 'Recebido' ? 'badge-success' : 'badge-warning'}">
                         ${pc.status === 'Recebido' ? '<i class="fas fa-check"></i> Recebido' : '<i class="fas fa-clock"></i> Pendente'}
@@ -2489,6 +2824,8 @@ navItems.forEach(item => {
                 DB_Engine.receberPedidoCompra(pcId);
             });
         });
+
+        */
 
         // Populate supplier select in order form
         const orderSupplierSelect = document.getElementById('order-supplier-select');
@@ -2695,6 +3032,7 @@ navItems.forEach(item => {
         renderMarketingModule();
         renderProductsModule();
         renderProductsSupplyModule();
+        if (window.renderPedidosCompra) window.renderPedidosCompra();
         renderSportsModule();
         if (window.FinanceModule) window.FinanceModule.renderFinanceModule();
         if (window.GEDModule) {
@@ -2706,6 +3044,49 @@ navItems.forEach(item => {
         // Atualiza a reatividade do calendário do dashboard
         renderDashboardCalendar();
     }
+
+    // ------------------------------------------------------------------------
+    // SINCRONIZAÇÃO REALTIME GLOBAL
+    // Toda alteração confirmada no Supabase é reconciliada em segundo plano e
+    // refletida pelos renderizadores existentes, sem recarregar a página.
+    // ------------------------------------------------------------------------
+    const realtimeTables = [
+        'usuarios', 'eventos', 'tarefas_logistica', 'modalidades', 'atletas',
+        'produtos', 'produto_variantes', 'calendario_editorial', 'cronograma_postagens',
+        'escalacoes', 'participantes_evento', 'lancamentos_financeiros',
+        'parceiros_patrocinadores', 'documentos_contratos', 'logs_notificacoes',
+        'fornecedores', 'pedidos_compra', 'pedidos_compra_itens', 'log_recebimentos',
+        'diretorias', 'usuario_diretorias', 'permissoes', 'configuracoes_globais',
+        'notificacoes_config', 'coordenador_modalidades'
+    ];
+    let realtimeSyncTimer;
+    let realtimeSyncInProgress = false;
+
+    async function reconcileRealtimeChange() {
+        if (realtimeSyncInProgress) return;
+        realtimeSyncInProgress = true;
+        try {
+            await window.syncDBFromSupabase();
+            refreshAllUI();
+        } catch (error) {
+            console.error('[Realtime] Não foi possível sincronizar a interface:', error);
+        } finally {
+            realtimeSyncInProgress = false;
+        }
+    }
+
+    function scheduleRealtimeSync() {
+        clearTimeout(realtimeSyncTimer);
+        realtimeSyncTimer = setTimeout(reconcileRealtimeChange, 180);
+    }
+
+    const realtimeChannel = supabase.channel('app-global-realtime');
+    realtimeTables.forEach(table => {
+        realtimeChannel.on('postgres_changes', { event: '*', schema: 'public', table }, scheduleRealtimeSync);
+    });
+    realtimeChannel.subscribe(status => {
+        if (status === 'CHANNEL_ERROR') console.error('[Realtime] Canal global indisponível. Verifique a publicação das tabelas no Supabase.');
+    });
 // Bind global para comentários contextuais em qualquer módulo
     document.addEventListener('click', async (e) => {
       const btn = e.target.closest('.ctx-comments-trigger');

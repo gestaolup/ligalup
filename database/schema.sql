@@ -9,7 +9,9 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ----------------------------------------------------------------------------
 -- Enums e Tipos customizados
 -- ----------------------------------------------------------------------------
-CREATE TYPE tipo_cargo AS ENUM ('Master', 'Diretor', 'Coordenador', 'Apoio');
+CREATE TYPE tipo_cargo AS ENUM (
+    'Master', 'Presidente', 'Vice-Presidente', 'Diretor', 'Coordenador', 'Apoio'
+);
 
 CREATE TYPE tipo_diretoria AS ENUM (
     'Presidência', 'Vice-Presidência', 'Tesouraria', 'Esportes', 
@@ -24,7 +26,10 @@ CREATE TYPE tipo_lancamento AS ENUM ('Entrada', 'Saída');
 
 CREATE TYPE status_atleta AS ENUM ('Pendente', 'Aprovado', 'Rejeitado');
 
-CREATE TYPE status_funil_parceria AS ENUM ('Prospecção', 'Proposta', 'Negociação', 'Contrato Ativo', 'Arquivado');
+CREATE TYPE status_funil_parceria AS ENUM (
+    'Prospecção', 'Proposta', 'Proposta Gerada', 'Negociação',
+    'Contrato Anexado / Em Assinatura', 'Contrato Ativo', 'Arquivado'
+);
 
 CREATE TYPE tipo_plataforma AS ENUM ('Instagram', 'WhatsApp', 'LinkedIn', 'Outra');
 
@@ -77,11 +82,22 @@ CREATE TABLE modalidades (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Vínculo N:N entre coordenadores/apoios e modalidades esportivas
+CREATE TABLE coordenador_modalidades (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    modalidade_id UUID NOT NULL REFERENCES modalidades(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT coordenador_modalidades_usuario_modalidade_key UNIQUE (usuario_id, modalidade_id)
+);
+
 -- 5. Atletas
 CREATE TABLE atletas (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     nome VARCHAR(255) NOT NULL,
     ra_matricula VARCHAR(50) UNIQUE NOT NULL,
+    contato VARCHAR(50),
+    email VARCHAR(255),
     modalidade_id UUID NOT NULL REFERENCES modalidades(id) ON DELETE CASCADE,
     status_documentacao status_atleta NOT NULL DEFAULT 'Pendente',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -93,6 +109,7 @@ CREATE TABLE parceiros_patrocinadores (
     nome_empresa VARCHAR(255) NOT NULL,
     tipo_parceria VARCHAR(100) NOT NULL, -- Ex: Financeiro, Material, Divulgação
     status_funil status_funil_parceria NOT NULL DEFAULT 'Prospecção',
+    link_proposta_drive VARCHAR(1024),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

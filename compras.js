@@ -173,9 +173,9 @@ window.initComprasModule = function(deps) {
             // Ações baseadas em status e RBAC
             let acoes = '';
 
-            // Botão Ver / Editar (Rascunho)
-            if (p.status === 'Rascunho') {
-                acoes += `<button class="btn" style="padding:4px 8px; font-size:11px; margin:2px;" onclick="window.Compras.openModalNovoPedido('${p.id}')" title="Editar rascunho"><i class="fas fa-edit"></i></button>`;
+            // Rascunhos e pedidos em aprovação ainda podem ter sua estrutura editada.
+            if (['Rascunho', 'Aguardando Aprovação'].includes(p.status)) {
+                acoes += `<button class="btn" style="padding:4px 8px; font-size:11px; margin:2px;" onclick="window.Compras.openModalNovoPedido('${p.id}')" title="Editar pedido"><i class="fas fa-edit"></i></button>`;
             } else {
                 acoes += `<button class="btn btn-secondary" style="padding:4px 8px; font-size:11px; margin:2px; opacity:.6;" onclick="window.Compras.viewPedido('${p.id}')" title="Ver detalhes"><i class="fas fa-eye"></i></button>`;
             }
@@ -223,6 +223,10 @@ window.initComprasModule = function(deps) {
         if (!overlay) return;
 
         const DB = getDB();
+        const pedidoExistente = pedidoId
+            ? (DB.pedidos_compra || []).find(p => p.id === pedidoId)
+            : null;
+        const pedidoBloqueado = pedidoExistente && ['Aprovado', 'Parcialmente Recebido', 'Concluído', 'Cancelado'].includes(pedidoExistente.status);
 
         // Reset
         const elId = document.getElementById('modal-pedido-id');
@@ -253,7 +257,7 @@ window.initComprasModule = function(deps) {
 
         // Se edição de rascunho, preenche dados existentes
         if (pedidoId) {
-            const pedido = (DB.pedidos_compra || []).find(p => p.id === pedidoId);
+            const pedido = pedidoExistente;
             if (pedido) {
                 if (selForn) selForn.value = pedido.fornecedor_id || '';
                 if (pedido.data_prevista_entrega && elEntrega) {
@@ -265,6 +269,17 @@ window.initComprasModule = function(deps) {
             }
         } else {
             addItemRow();
+        }
+
+        // Após a aprovação, o pedido é somente leitura: não há alteração de
+        // itens, fornecedor, quantidades ou valores financeiros.
+        if (pedidoBloqueado) {
+            if (elTitulo) elTitulo.textContent = 'Detalhes do Pedido';
+            if (btnSalvarRasc) btnSalvarRasc.style.display = 'none';
+            if (btnEnviarAprov) btnEnviarAprov.style.display = 'none';
+            if (btnAddItemRow) btnAddItemRow.style.display = 'none';
+            [selForn, elEntrega].forEach(el => { if (el) el.disabled = true; });
+            elTbody?.querySelectorAll('input, select, button').forEach(el => { el.disabled = true; });
         }
 
         overlay.style.display = 'flex';
@@ -400,6 +415,14 @@ window.initComprasModule = function(deps) {
         const pedidoId    = document.getElementById('modal-pedido-id').value;
         const fornecedorId = document.getElementById('modal-pedido-fornecedor').value;
         const dataEntrega  = document.getElementById('modal-pedido-data-entrega').value;
+
+        const pedidoAtual = pedidoId
+            ? (getDB().pedidos_compra || []).find(p => p.id === pedidoId)
+            : null;
+        if (pedidoAtual && ['Aprovado', 'Parcialmente Recebido', 'Concluído', 'Cancelado'].includes(pedidoAtual.status)) {
+            alert('Pedidos aprovados ou em recebimento não podem ter itens ou valores alterados. Use o fluxo de recebimento de estoque.');
+            return;
+        }
 
         if (!fornecedorId) {
             alert('Selecione um fornecedor para o pedido.');
@@ -713,7 +736,7 @@ window.initComprasModule = function(deps) {
         </div>`;
     }
 
-    async function registrarEntrega() {
+    async function registrarRecebimento() {
         const currentUser = getCurrentUser();
         if (!currentUser) return;
 
@@ -814,7 +837,7 @@ window.initComprasModule = function(deps) {
 
         // Botão Confirmar Recebimento
         const btnConf = document.getElementById('btn-confirmar-recebimento');
-        if (btnConf) btnConf.addEventListener('click', registrarEntrega);
+        if (btnConf) btnConf.addEventListener('click', registrarRecebimento);
 
         // Fechar Modal Recebimento
         const btnCloseReceb   = document.getElementById('btn-close-modal-recebimento');
@@ -834,10 +857,12 @@ window.initComprasModule = function(deps) {
     // -----------------------------------------------------------------------
     window.openModalNovoPedido  = openModalNovoPedido;
     window.openModalRecebimento = openModalRecebimento;
+    window.registrarRecebimento = registrarRecebimento;
 
     window.Compras = {
         openModalNovoPedido,
         openModalRecebimento,
+        registrarRecebimento,
         aprovarPedido,
         cancelarPedido,
         viewPedido,
@@ -852,4 +877,3 @@ window.initComprasModule = function(deps) {
 
     console.log('[Compras] Módulo Supply Chain v1.2 inicializado com sucesso.');
 };
-

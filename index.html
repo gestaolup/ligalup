@@ -62,10 +62,15 @@
 </head>
 <body>
 
+    <div id="app-loading" role="status" aria-live="polite" style="position:fixed; inset:0; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; background:#111827; color:#fff; font-family:Inter,Arial,sans-serif;">
+        <i class="fas fa-spinner fa-spin" style="font-size:32px; color:#60a5fa;"></i>
+        <span>Carregando plataforma…</span>
+    </div>
+
     <!-- ================================================================== -->
     <!-- TELA DE LOGIN (Produção) -->
     <!-- ================================================================== -->
-    <div id="login-screen">
+    <div id="login-screen" style="display:none;">
         <div class="login-backdrop"></div>
         <div class="login-card">
             <div class="login-logo">
@@ -335,40 +340,63 @@
                     <div class="glass-card kpi-card financeiro">
                         <div class="kpi-icon"><i class="fas fa-dollar-sign"></i></div>
                         <div class="kpi-info">
-                            <p>Caixa Geral</p>
+                            <p>Saldo em Caixa</p>
                             <h3 id="kpi-saldo-caixa">R$ 0,00</h3>
+                            <small id="kpi-financeiro-mes" style="color:var(--text-secondary);">Receitas R$ 0,00 · Despesas R$ 0,00</small>
                         </div>
                     </div>
                     <div class="glass-card kpi-card eventos">
                         <div class="kpi-icon"><i class="fas fa-hourglass-half"></i></div>
                         <div class="kpi-info">
-                            <p>Eventos s/ Aprovação</p>
-                            <h3 id="kpi-eventos-pendentes">0</h3>
+                            <p>Atletas Ativos</p>
+                            <h3 id="kpi-atletas-ativos">0</h3>
+                            <small id="kpi-atletas-pendentes" style="color:var(--warning);">0 documentos pendentes</small>
                         </div>
                     </div>
                     <div class="glass-card kpi-card contratos">
                         <div class="kpi-icon"><i class="fas fa-file-invoice-dollar"></i></div>
                         <div class="kpi-info">
-                            <p>Contratos a Vencer</p>
-                            <h3 id="kpi-contratos-vencer">0</h3>
+                            <p>Compras Pendentes</p>
+                            <h3 id="kpi-compras-pendentes">0</h3>
+                            <small style="color:var(--text-secondary);">Aguardando aprovação</small>
                         </div>
                     </div>
                     <div class="glass-card kpi-card atletas">
                         <div class="kpi-icon"><i class="fas fa-user-times"></i></div>
                         <div class="kpi-info">
-                            <p>Atletas Irregulares</p>
-                            <h3 id="kpi-atletas-irregulares">0</h3>
+                            <p>Próximo Evento</p>
+                            <h3 id="kpi-proximo-evento" style="font-size:18px;">Sem eventos</h3>
+                            <small id="kpi-proximo-evento-data" style="color:var(--text-secondary);">—</small>
                         </div>
                     </div>
                 </div>
                 
                 <!-- CALENDÁRIO INTERATIVO E PAINEL DE AÇÕES -->
+                <div class="dashboard-calendar-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:24px;">
+                    <div class="glass-card" style="padding:20px;">
+                        <h3 style="font-family:var(--font-heading); margin-bottom:14px;"><i class="fas fa-bell" style="color:var(--accent);"></i> Pendências e Ações Rápidas</h3>
+                        <div id="dashboard-alerts-list" style="display:flex; flex-direction:column; gap:9px;"></div>
+                    </div>
+                    <div class="glass-card" style="padding:20px;">
+                        <h3 style="font-family:var(--font-heading); margin-bottom:14px;"><i class="fas fa-calendar-alt" style="color:var(--primary);"></i> Próximos Eventos e Jogos</h3>
+                        <div id="dashboard-upcoming-events" style="display:flex; flex-direction:column; gap:9px;"></div>
+                    </div>
+                </div>
+                <div class="glass-card" style="padding:20px; margin-bottom:24px;">
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
+                        <h3 style="font-family:var(--font-heading); margin:0;"><i class="fas fa-boxes" style="color:var(--warning);"></i> Resumo de Estoque</h3>
+                        <span id="dashboard-stock-summary" class="badge badge-secondary">Sem dados cadastrados</span>
+                    </div>
+                    <div id="dashboard-stock-list" style="display:flex; flex-wrap:wrap; gap:9px;"></div>
+                </div>
+
                 <div class="dashboard-calendar-grid" style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 24px; margin-bottom: 24px;">
                     <!-- Card do Calendário -->
                     <div class="glass-card" id="dashboard-calendar-card" style="padding: 20px;">
                         <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom:16px;">
                             <h3 style="font-family: var(--font-heading); margin-bottom: 0; display: flex; align-items: center; gap: 8px;"><i class="fas fa-calendar-alt" style="color: var(--primary);"></i> Calendário da LUP</h3>
                             <div style="display:flex; gap:8px; align-items:center;">
+                                <button id="btn-new-dashboard-activity" class="btn btn-accent" style="padding:5px 10px; font-size:11px;"><i class="fas fa-plus"></i> Nova Atividade</button>
                                 <button id="cal-prev-month" class="btn btn-secondary" style="padding:4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); font-size: 11px;"><i class="fas fa-chevron-left"></i></button>
                                 <span id="cal-month-year" style="font-weight:bold; font-size:13px; min-width:90px; text-align:center; color:#fff;">--/--</span>
                                 <button id="cal-next-month" class="btn btn-secondary" style="padding:4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); font-size: 11px;"><i class="fas fa-chevron-right"></i></button>
@@ -804,6 +832,10 @@
                                     <input type="number" class="form-control" id="prod-venda" step="0.01" min="0" placeholder="0.00" required>
                                 </div>
                             </div>
+                            <div class="form-group" style="margin-top:12px;">
+                                <label>Variantes (tamanhos separados por vírgula)</label>
+                                <input type="text" class="form-control" id="prod-variantes" placeholder="Ex: P, M, G, GG">
+                            </div>
                             <div style="display: flex; gap: 8px;">
                                 <button type="submit" class="btn btn-accent" id="btn-save-product">
                                     <i class="fas fa-save"></i> Salvar Produto
@@ -987,8 +1019,9 @@
             <section id="mod-esportes" class="module-section">
                 <!-- Navegação por Abas -->
                 <div class="tab-nav" style="margin-bottom: 24px;">
-                    <button class="tab-btn active" data-tab="esp-tab-atletas"><i class="fas fa-running"></i> Atletas</button>
                     <button class="tab-btn" data-tab="esp-tab-modalidades"><i class="fas fa-medal"></i> Modalidades</button>
+                    <button class="tab-btn" data-tab="esp-tab-coordenadores"><i class="fas fa-users-cog"></i> Coordenadores</button>
+                    <button class="tab-btn active" data-tab="esp-tab-atletas"><i class="fas fa-running"></i> Atletas</button>
                 </div>
 
                 <!-- ABA: ATLETAS -->
@@ -1065,6 +1098,16 @@
                                     <select class="form-control" id="enroll-mod-select">
                                         <!-- Dinâmico JS -->
                                     </select>
+                                </div>
+                            </div>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Contato (Telefone / WhatsApp)</label>
+                                    <input type="tel" class="form-control" id="enroll-contact" placeholder="Ex: (11) 99999-9999">
+                                </div>
+                                <div class="form-group">
+                                    <label>E-mail</label>
+                                    <input type="email" class="form-control" id="enroll-email" placeholder="Ex: atleta@universidade.edu.br">
                                 </div>
                             </div>
                             <div class="form-group" style="margin-bottom:12px;">
@@ -1166,6 +1209,20 @@
                         <div class="table-container">
                             <table id="modalities-table">
                                 <thead><tr><th>Modalidade</th><th>Categoria</th><th>Coordenador</th><th>Atletas</th><th>Ações</th></tr></thead>
+                                <tbody><!-- Dinâmico JS --></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div id="esp-tab-coordenadores" class="tab-content">
+                    <div class="glass-card">
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:16px;">
+                            <h3 style="font-family:var(--font-heading); margin:0;"><i class="fas fa-users-cog"></i> Coordenadores e Apoios</h3>
+                            <span class="info-tooltip" data-tip="Atribua uma ou mais modalidades para cobertura de equipes."><i class="fas fa-info-circle"></i></span>
+                        </div>
+                        <div class="table-container">
+                            <table id="coordinators-table">
+                                <thead><tr><th>Coordenador</th><th>Contato / E-mail</th><th>Modalidades sob responsabilidade</th><th>Ação</th></tr></thead>
                                 <tbody><!-- Dinâmico JS --></tbody>
                             </table>
                         </div>
@@ -2001,6 +2058,41 @@
     <!-- ================================================================ -->
     <!-- MODAL: NOVA CONVERSA — Chat Interno                              -->
     <!-- ================================================================ -->
+    <div class="trigger-error-overlay" id="dashboard-activity-modal-overlay">
+        <div class="partner-detail-modal" style="max-width:520px;">
+            <div style="padding:20px 24px; border-bottom:1px solid var(--border-glass); display:flex; justify-content:space-between; align-items:center;">
+                <h3 style="font-family:var(--font-heading); margin:0;"><i class="fas fa-thumbtack"></i> Nova Atividade / Lembrete</h3>
+                <button id="btn-close-dashboard-activity" style="background:none; border:0; color:var(--text-secondary); cursor:pointer; font-size:18px;"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="form-dashboard-activity">
+                <div style="padding:20px 24px; display:flex; flex-direction:column; gap:14px;">
+                    <div class="form-group" style="margin:0;"><label>Título da Atividade</label><input id="dashboard-activity-title" class="form-control" required maxlength="255" placeholder="Ex: Reunião de alinhamento"></div>
+                    <div class="form-grid"><div class="form-group" style="margin:0;"><label>Tipo / Categoria</label><select id="dashboard-activity-type" class="form-control"><option>Reunião</option><option>Treino</option><option>Lembrete</option><option>Entrega</option><option>Outros</option></select></div><div class="form-group" style="margin:0;"><label>Data e horário</label><input id="dashboard-activity-date" class="form-control" type="datetime-local" required></div></div>
+                    <div class="form-group" style="margin:0;"><label>Observações</label><textarea id="dashboard-activity-description" class="form-control" rows="3" placeholder="Informações adicionais (opcional)"></textarea></div>
+                </div>
+                <div class="error-modal-footer" style="padding:0 24px 24px; justify-content:flex-end; gap:10px;"><button type="button" class="btn btn-secondary" id="btn-cancel-dashboard-activity">Cancelar</button><button type="submit" class="btn btn-primary" id="btn-save-dashboard-activity"><i class="fas fa-save"></i> Salvar Atividade</button></div>
+            </form>
+        </div>
+    </div>
+
+    <div class="trigger-error-overlay" id="coordinator-modal-overlay">
+        <div class="partner-detail-modal" style="max-width:620px;">
+            <div style="padding:20px 24px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center;">
+                <h3 id="coordinator-modal-title" style="font-family:var(--font-heading); margin:0;"><i class="fas fa-users-cog"></i> Atribuir Modalidades</h3>
+                <button id="btn-close-coordinator-modal" style="background:none; border:0; color:var(--text-secondary); cursor:pointer; font-size:18px;"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="padding:20px 24px;">
+                <input type="hidden" id="coordinator-modal-user-id">
+                <p style="font-size:13px; color:var(--text-secondary); margin-top:0;">Selecione todas as modalidades sob responsabilidade deste usuário.</p>
+                <div id="coordinator-modal-modalities" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:10px;"></div>
+            </div>
+            <div class="error-modal-footer" style="padding:0 24px 24px; justify-content:flex-end; gap:10px;">
+                <button class="btn btn-secondary" id="btn-cancel-coordinator-modal">Cancelar</button>
+                <button class="btn btn-primary" id="btn-save-coordinator-modal"><i class="fas fa-save"></i> Salvar Modalidades</button>
+            </div>
+        </div>
+    </div>
+
     <div class="new-chat-overlay-wrapper" id="new-chat-overlay">
       <div class="new-chat-modal glass-card">
 
@@ -2075,7 +2167,7 @@
     <!-- Módulo GED e Documentos (deve ser carregado antes do app.js) -->
     <script src="ged_docs.js?v=2"></script>
     <!-- Módulo de Compras / Supply Chain (Sprint 4 — deve ser carregado antes do app.js) -->
-    <script src="compras.js?v=1"></script>
+    <script src="compras.js?v=2"></script>
     <!-- Script da Aplicação -->
     <script src="app.js?v=2"></script>
 

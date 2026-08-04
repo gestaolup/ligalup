@@ -19,14 +19,56 @@ window.initGED = function(deps) {
         refreshAllUI
     } = deps;
 
+    const STATUS_PROPOSTA = 'Proposta Gerada';
+    const STATUS_CONTRATO_ANEXADO = 'Contrato Anexado / Em Assinatura';
+
+    function reportError(contexto, error) {
+        console.error(`[GED] ${contexto}:`, error);
+        alert(`${contexto}. ${error.message || 'Tente novamente.'}`);
+    }
+
+    async function loadParceriasData() {
+        const [{ data: parceiros, error: parceirosError }, { data: documentos, error: documentosError }] = await Promise.all([
+            supabase.from('parceiros_patrocinadores').select('*').order('created_at', { ascending: false }),
+            supabase.from('documentos_contratos').select('*').order('created_at', { ascending: false })
+        ]);
+
+        if (parceirosError) throw parceirosError;
+        if (documentosError) throw documentosError;
+        return { parceiros, documentos };
+    }
+
+    let realtimeRefreshTimer;
+    function scheduleRealtimeRefresh() {
+        clearTimeout(realtimeRefreshTimer);
+        realtimeRefreshTimer = setTimeout(() => {
+            renderParceriasModule();
+            renderLegalModule();
+        }, 150);
+    }
+
+    // Mantém as duas telas sincronizadas inclusive quando outra aba/usuário altera os dados.
+    supabase.channel('parcerias-juridico-ui')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'parceiros_patrocinadores' }, scheduleRealtimeRefresh)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'documentos_contratos' }, scheduleRealtimeRefresh)
+        .subscribe();
+
     // RENDER 6: PARTNERS & LEGAL (GED Repositories)
-    function renderParceriasModule() {
-        const DB = getDB();
+    async function renderParceriasModule() {
         const partnersList = document.getElementById('partners-list');
         if (!partnersList) return;
         partnersList.innerHTML = '';
+
+        let parceiros, documentos;
+        try {
+            ({ parceiros, documentos } = await loadParceriasData());
+        } catch (error) {
+            console.error('[GED] Não foi possível carregar as parcerias:', error);
+            partnersList.innerHTML = '<div class="empty-state">Não foi possível carregar as parcerias. Atualize a página e tente novamente.</div>';
+            return;
+        }
         
-        DB.parceiros_patrocinadores.forEach(partner => {
+        parceiros.forEach(partner => {
             const card = document.createElement('div');
             card.className = 'list-group-item';
             
@@ -35,7 +77,7 @@ window.initGED = function(deps) {
             else if (partner.status_funil === 'Arquivado') statusBadge = '<span class="badge badge-secondary">ARQUIVADO</span>';
             else statusBadge = `<span class="badge badge-warning">${partner.status_funil}</span>`;
 
-            const contrato = DB.documentos_contratos.find(d => d.parceiro_id === partner.id && d.tipo_documento === 'Contrato');
+            const contrato = documentos.find(d => d.parceiro_id === partner.id && d.tipo_documento === 'Contrato');
 
             card.innerHTML = `
                 <div style="flex-grow:1;">
@@ -58,13 +100,21 @@ window.initGED = function(deps) {
         });
     }
 
-    function renderLegalModule() {
-        const DB = getDB();
+    async function renderLegalModule() {
+        let parceiros, documentos;
+        try {
+            ({ parceiros, documentos } = await loadParceriasData());
+        } catch (error) {
+            console.error('[GED] Não foi possível carregar os dados jurídicos:', error);
+            const auditoriaTbody = document.querySelector('#auditoria-parcerias-table tbody');
+            if (auditoriaTbody) auditoriaTbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--danger);">Não foi possível carregar as propostas do Supabase.</td></tr>';
+            return;
+        }
         const auditoriaTbody = document.querySelector('#auditoria-parcerias-table tbody');
         if (auditoriaTbody) {
             auditoriaTbody.innerHTML = '';
             
-            const parceriasAguardando = DB.parceiros_patrocinadores.filter(p => p.status_funil !== 'Contrato Ativo' && p.status_funil !== 'Encerrado');
+            const parceriasAguardando = parceiros.filter(p => !['Contrato Ativo', 'Encerrado', 'Arquivado'].includes(p.status_funil));
             
             if (parceriasAguardando.length === 0) {
                 auditoriaTbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-secondary);">Nenhuma parceria pendente de contrato no momento.</td></tr>';
@@ -105,8 +155,8 @@ window.initGED = function(deps) {
         const gedTbody = document.querySelector('#ged-table tbody');
         if (gedTbody) {
             gedTbody.innerHTML = '';
-            DB.documentos_contratos.forEach(doc => {
-                const partner = DB.parceiros_patrocinadores.find(p => p.id === doc.parceiro_id);
+            documentos.forEach(doc => {
+                const partner = parceiros.find(p => p.id === doc.parceiro_id);
                 const tr = document.createElement('tr');
                 
                 tr.innerHTML = `
@@ -132,7 +182,7 @@ window.initGED = function(deps) {
         const partnerSelect = document.getElementById('doc-partner-select');
         if (partnerSelect) {
             partnerSelect.innerHTML = '<option value="">Parceiro Geral...</option>';
-            DB.parceiros_patrocinadores.forEach(p => {
+            parceiros.forEach(p => {
                 const opt = document.createElement('option');
                 opt.value = p.id;
                 opt.innerText = p.nome_empresa;
@@ -142,10 +192,16 @@ window.initGED = function(deps) {
     }
 
     // PARTNER DETAIL MODAL LOGIC (Jurídico Read/Write)
-    function openPartnerDetailModal(partnerId) {
-        const DB = getDB();
-        const partner = DB.parceiros_patrocinadores.find(p => p.id === partnerId);
-        if (!partner) return;
+    async function openPartnerDetailModal(partnerId) {
+        const { data: partner, error } = await supabase
+            .from('parceiros_patrocinadores')
+            .select('*')
+            .eq('id', partnerId)
+            .single();
+        if (error) {
+            reportError('Não foi possível carregar os detalhes da parceria', error);
+            return;
+        }
 
         document.getElementById('detail-partner-id').value = partner.id;
         document.getElementById('detail-partner-name').value = partner.nome_empresa;
@@ -171,6 +227,13 @@ window.initGED = function(deps) {
             <option value="Encerrado">Encerrado</option>
             <option value="Arquivado">Arquivado</option>
         `;
+
+        if (![...statusSelect.options].some(option => option.value === partner.status_funil)) {
+            const currentStatusOption = document.createElement('option');
+            currentStatusOption.value = partner.status_funil;
+            currentStatusOption.textContent = partner.status_funil;
+            statusSelect.appendChild(currentStatusOption);
+        }
 
         if (partner.status_funil === 'Contrato Ativo') {
             const opt = document.createElement('option');
@@ -209,9 +272,35 @@ window.initGED = function(deps) {
     // Event Handler: Create Partner
     const formCreatePartner = document.getElementById('form-create-partner');
     if (formCreatePartner) {
-        formCreatePartner.addEventListener('submit', (e) => {
+        formCreatePartner.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const DB = getDB();
+            const nome = document.getElementById('partner-nome').value.trim();
+            const tipo = document.getElementById('partner-tipo').value.trim();
+            const link = document.getElementById('partner-proposta-url').value.trim();
+            const submitButton = formCreatePartner.querySelector('button[type="submit"]');
+            if (submitButton) submitButton.disabled = true;
+            try {
+                const { error } = await supabase.from('parceiros_patrocinadores').insert({
+                    nome_empresa: nome,
+                    tipo_parceria: tipo,
+                    status_funil: STATUS_PROPOSTA,
+                    link_proposta_drive: link
+                });
+                if (error) throw error;
+
+                logSQL(`INSERT INTO parceiros_patrocinadores (nome_empresa, tipo_parceria, status_funil, link_proposta_drive) VALUES ('${nome}', '${tipo}', '${STATUS_PROPOSTA}', '${link}');`, 'query');
+                formCreatePartner.reset();
+                await renderParceriasModule();
+                await renderLegalModule();
+                alert('Proposta enviada ao Jurídico com sucesso.');
+            } catch (error) {
+                reportError('Não foi possível salvar a proposta de parceria', error);
+            } finally {
+                if (submitButton) submitButton.disabled = false;
+            }
+            return;
+
+            { const DB = getDB();
             const currentUser = getCurrentUser();
             const nome = document.getElementById('partner-nome').value;
             const tipo = document.getElementById('partner-tipo').value;
@@ -242,6 +331,7 @@ window.initGED = function(deps) {
             
             formCreatePartner.reset();
             refreshAllUI();
+            }
         });
     }
 
@@ -255,8 +345,30 @@ window.initGED = function(deps) {
     // Modal Save Listener
     const btnSaveDetail = document.getElementById('btn-save-partner-detail');
     if (btnSaveDetail) {
-        btnSaveDetail.addEventListener('click', () => {
-            const DB = getDB();
+        btnSaveDetail.addEventListener('click', async () => {
+            const partnerId = document.getElementById('detail-partner-id').value;
+            const newStatus = document.getElementById('detail-partner-status').value;
+            btnSaveDetail.disabled = true;
+            try {
+                const { error } = await supabase
+                    .from('parceiros_patrocinadores')
+                    .update({ status_funil: newStatus })
+                    .eq('id', partnerId);
+                if (error) throw error;
+
+                logSQL(`UPDATE parceiros_patrocinadores SET status_funil = '${newStatus}' WHERE id = '${partnerId}';`, 'query');
+                closePartnerDetailModal();
+                await renderParceriasModule();
+                await renderLegalModule();
+                alert('Status da parceria atualizado com sucesso.');
+            } catch (error) {
+                reportError('Não foi possível atualizar o status da parceria', error);
+            } finally {
+                btnSaveDetail.disabled = false;
+            }
+            return;
+
+            { const DB = getDB();
             const currentUser = getCurrentUser();
             const partnerId = document.getElementById('detail-partner-id').value;
             const newStatus = document.getElementById('detail-partner-status').value;
@@ -285,14 +397,58 @@ window.initGED = function(deps) {
 
             closePartnerDetailModal();
             refreshAllUI();
+            }
         });
     }
 
     // Event Handler: Upload document link to GED
     const btnAddDoc = document.getElementById('btn-add-document');
     if (btnAddDoc) {
-        btnAddDoc.addEventListener('click', () => {
-            const DB = getDB();
+        btnAddDoc.addEventListener('click', async () => {
+            const title = document.getElementById('doc-title').value.trim();
+            const type = document.getElementById('doc-type').value;
+            const url = document.getElementById('doc-url').value.trim();
+            const expiry = document.getElementById('doc-expiry').value;
+            const partnerId = document.getElementById('doc-partner-select').value;
+
+            if (!title || !url) {
+                alert('Preencha os dados do documento: título e URL são obrigatórios.');
+                return;
+            }
+
+            btnAddDoc.disabled = true;
+            try {
+                const { error: documentError } = await supabase.from('documentos_contratos').insert({
+                    titulo: title,
+                    tipo_documento: type,
+                    arquivo_url: url,
+                    data_vencimento: expiry || null,
+                    parceiro_id: partnerId || null
+                });
+                if (documentError) throw documentError;
+
+                if (type === 'Contrato' && partnerId) {
+                    const { error: partnershipError } = await supabase
+                        .from('parceiros_patrocinadores')
+                        .update({ status_funil: STATUS_CONTRATO_ANEXADO })
+                        .eq('id', partnerId);
+                    if (partnershipError) throw partnershipError;
+                }
+
+                logSQL(`INSERT INTO documentos_contratos (titulo, tipo_documento, arquivo_url, data_vencimento, parceiro_id) VALUES ('${title}', '${type}', '${url}', '${expiry}', '${partnerId}');`, 'query');
+                if (type === 'Contrato' && partnerId) logSQL(`UPDATE parceiros_patrocinadores SET status_funil = '${STATUS_CONTRATO_ANEXADO}' WHERE id = '${partnerId}';`, 'query');
+                document.getElementById('form-upload-doc').reset();
+                await renderParceriasModule();
+                await renderLegalModule();
+                alert(type === 'Contrato' && partnerId ? 'Contrato gerado e parceria enviada para assinatura.' : 'Documento salvo no GED com sucesso.');
+            } catch (error) {
+                reportError('Não foi possível salvar o documento no GED', error);
+            } finally {
+                btnAddDoc.disabled = false;
+            }
+            return;
+
+            { const DB = getDB();
             const title = document.getElementById('doc-title').value;
             const type = document.getElementById('doc-type').value;
             const url = document.getElementById('doc-url').value;
@@ -329,6 +485,7 @@ window.initGED = function(deps) {
             document.getElementById('doc-title').value = '';
             document.getElementById('doc-url').value = '';
             refreshAllUI();
+            }
         });
     }
 

@@ -18,6 +18,21 @@
 window.initAuth = function (deps) {
     const { supabase, getDB, syncDB, onLogin, logSQL, setCurrentUser } = deps;
 
+    const setVisible = (id, visible) => {
+        const element = document.getElementById(id);
+        if (element) element.style.display = visible ? '' : 'none';
+    };
+    const showLogin = () => {
+        setVisible('app-loading', false);
+        setVisible('app-wrapper', false);
+        setVisible('login-screen', true);
+    };
+
+    // Nunca mostra a tela de login antes de a sessão ser verificada.
+    setVisible('app-loading', true);
+    setVisible('login-screen', false);
+    setVisible('app-wrapper', false);
+
     // -----------------------------------------------------------------------
     // Verifica se o cliente Supabase está disponível e atualiza os badges de
     // status de conexão na tela de login e no header do painel.
@@ -54,6 +69,21 @@ window.initAuth = function (deps) {
                 connBadge.title = '';
             }
         }
+    }
+
+    async function restoreAuthenticatedUser(authUser) {
+        await syncDB();
+        const DB = getDB();
+        const user = DB.usuarios.find(u => u.id === authUser.id) ||
+            DB.usuarios.find(u => u.email === authUser.email);
+        if (!user) throw new Error('Usuário autenticado sem ficha correspondente na tabela de usuários.');
+
+        const hydratedUser = { ...user, id: authUser.id, email: authUser.email || user.email };
+        const linked = (DB.usuario_diretorias || [])
+            .filter(ud => ud.usuario_id === authUser.id)
+            .map(ud => ud.diretoria_id);
+        hydratedUser.diretorias_ids = [...new Set([hydratedUser.diretoria_id, ...linked].filter(Boolean))];
+        return hydratedUser;
     }
 
     // A autenticação agora depende estritamente do Supabase Auth.
@@ -143,12 +173,17 @@ window.initAuth = function (deps) {
     // -----------------------------------------------------------------------
     // Logout: limpa o estado local e retorna à tela de login.
     // -----------------------------------------------------------------------
-    document.getElementById('btn-logout').addEventListener('click', () => {
+    document.getElementById('btn-logout').addEventListener('click', async () => {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+            console.error('Não foi possível encerrar a sessão:', error);
+            alert('Não foi possível encerrar a sessão. Tente novamente.');
+            return;
+        }
         localStorage.removeItem('lup_token');
         localStorage.removeItem('lup_user');
         setCurrentUser(null);
-        document.getElementById('app-wrapper').style.display = 'none';
-        document.getElementById('login-screen').style.display = '';
+        showLogin();
         document.getElementById('login-email').value = '';
         document.getElementById('login-password').value = '';
         logSQL('LOGOUT: Sessão encerrada pelo usuário.', 'trigger');
@@ -162,12 +197,16 @@ window.initAuth = function (deps) {
         await checkBackend();
         // Se token válido no localStorage, tenta restaurar sessão
         try {
-            const savedUser  = JSON.parse(localStorage.getItem('lup_user'));
-            const savedToken = localStorage.getItem('lup_token');
-            if (savedUser && savedToken) {
-                onLogin(savedUser);
-                return;
+            const { data: { session }, error } = await supabase.auth.getSession();
+            if (error) throw error;
+            if (session?.user) {
+                onLogin(await restoreAuthenticatedUser(session.user));
+            } else {
+                showLogin();
             }
-        } catch { /* ignorar */ }
+        } catch (error) {
+            console.warn('Não foi possível restaurar a sessão:', error);
+            showLogin();
+        }
     })();
 };
