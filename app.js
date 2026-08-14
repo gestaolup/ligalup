@@ -1220,6 +1220,98 @@ navItems.forEach(item => {
             stockList.innerHTML = criticalVariants.length ? criticalVariants.map(item => `<span class="badge badge-warning" style="padding:8px 10px;">${escapeSportsHtml(productNameById.get(item.produto_id) || 'Produto')} · ${item.estoque_atual} un.</span>`).join('') : (products.length ? '<span style="font-size:13px; color:var(--success);">Estoque sem itens críticos.</span>' : '<span style="font-size:13px; color:var(--text-secondary);">Cadastre produtos e variantes para acompanhar o estoque.</span>');
         }
 
+        // --- Gráfico de Barras: Estoque por Produto ---
+        (function renderStockChart() {
+            const canvas = document.getElementById('chart-estoque');
+            if (!canvas || typeof Chart === 'undefined') return;
+
+            // Agrupa estoque total por produto
+            const stockByProduct = {};
+            variants.forEach(v => {
+                const nome = productNameById.get(v.produto_id) || 'Desconhecido';
+                stockByProduct[nome] = (stockByProduct[nome] || 0) + Number(v.estoque_atual || 0);
+            });
+
+            const labels = Object.keys(stockByProduct);
+            const data   = Object.values(stockByProduct);
+
+            // Define cor da barra: vermelho se crítico (total ≤ 5), verde caso contrário
+            const barColors = data.map(qty =>
+                qty <= 5
+                    ? 'rgba(239, 68, 68, 0.75)'    // danger
+                    : 'rgba(16, 185, 129, 0.75)'    // success
+            );
+            const borderColors = data.map(qty =>
+                qty <= 5 ? 'rgb(239, 68, 68)' : 'rgb(16, 185, 129)'
+            );
+
+            // Destrói instância anterior para evitar sobreposição
+            if (window._lupEstoqueChart instanceof Chart) {
+                window._lupEstoqueChart.destroy();
+            }
+
+            if (labels.length === 0) {
+                canvas.style.display = 'none';
+                return;
+            }
+            canvas.style.display = 'block';
+
+            window._lupEstoqueChart = new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Estoque Total (unidades)',
+                        data,
+                        backgroundColor: barColors,
+                        borderColor: borderColors,
+                        borderWidth: 1.5,
+                        borderRadius: 6,
+                        borderSkipped: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 600, easing: 'easeOutQuart' },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15,15,30,0.92)',
+                            titleColor: '#fff',
+                            bodyColor: '#94a3b8',
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderWidth: 1,
+                            padding: 10,
+                            callbacks: {
+                                label: ctx => ` ${ctx.parsed.y} unidades`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: '#94a3b8',
+                                font: { size: 11 },
+                                maxRotation: 30
+                            },
+                            grid: { color: 'rgba(255,255,255,0.04)' }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#94a3b8',
+                                font: { size: 11 },
+                                stepSize: 1
+                            },
+                            grid: { color: 'rgba(255,255,255,0.07)' }
+                        }
+                    }
+                }
+            });
+        })();
+
+
         if (window.UserAccess) window.UserAccess.renderAccessModule();
 
         // Render Logs & Audit table (with Delete attempt simulated to test RN-LOG-01)
