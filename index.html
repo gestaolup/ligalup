@@ -381,12 +381,19 @@
                     </div>
                 </div>
                 <div class="glass-card" style="padding:20px; margin-bottom:24px;">
-                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
-                        <h3 style="font-family:var(--font-heading); margin:0;"><i class="fas fa-boxes" style="color:var(--warning);"></i> Resumo de Estoque</h3>
-                        <span id="dashboard-stock-summary" class="badge badge-secondary">Sem dados cadastrados</span>
+                    <!-- Cabeçalho do card -->
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <h3 style="font-family:var(--font-heading); margin:0;"><i class="fas fa-boxes" style="color:var(--warning);"></i> Resumo de Estoque</h3>
+                            <span id="dashboard-stock-summary" class="badge badge-secondary">Sem dados cadastrados</span>
+                        </div>
+                        <!-- Tags de filtro por tamanho — preenchidas pelo JS -->
+                        <div id="stock-size-tags" style="display:none; flex-wrap:wrap; gap:6px; align-items:center;"></div>
                     </div>
+                    <!-- Badges de itens críticos -->
                     <div id="dashboard-stock-list" style="display:flex; flex-wrap:wrap; gap:9px; margin-bottom:18px;"></div>
-                    <div style="position:relative; width:100%; height:220px;">
+                    <!-- Gráfico -->
+                    <div style="position:relative; width:100%; height:240px;">
                         <canvas id="chart-estoque" style="display:block; width:100%; height:100%;"></canvas>
                     </div>
                 </div>

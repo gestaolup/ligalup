@@ -1157,7 +1157,7 @@ navItems.forEach(item => {
             safeQuery('pedidos_compra', 'id,status,data_prevista_entrega'),
             safeQuery('eventos', 'id,nome,data_evento,status_aprovacao,tipo'),
             safeQuery('produtos', 'id,nome'),
-            safeQuery('produto_variantes', 'produto_id,estoque_atual'),
+            safeQuery('produto_variantes', 'produto_id,tamanho,estoque_atual'),
             safeQuery('parceiros_patrocinadores', 'id,status_funil'),
             safeQuery('documentos_contratos', 'id,titulo,tipo_documento,arquivo_url,data_vencimento')
         ]);
@@ -1220,51 +1220,105 @@ navItems.forEach(item => {
             stockList.innerHTML = criticalVariants.length ? criticalVariants.map(item => `<span class="badge badge-warning" style="padding:8px 10px;">${escapeSportsHtml(productNameById.get(item.produto_id) || 'Produto')} · ${item.estoque_atual} un.</span>`).join('') : (products.length ? '<span style="font-size:13px; color:var(--success);">Estoque sem itens críticos.</span>' : '<span style="font-size:13px; color:var(--text-secondary);">Cadastre produtos e variantes para acompanhar o estoque.</span>');
         }
 
-        // --- Gráfico de Barras: Estoque por Produto ---
+        // --- Gráfico de Barras Interativo: Estoque por Produto com Filtro de Tamanho ---
         (function renderStockChart() {
-            const canvas = document.getElementById('chart-estoque');
+            const canvas  = document.getElementById('chart-estoque');
+            const tagsEl  = document.getElementById('stock-size-tags');
             if (!canvas || typeof Chart === 'undefined') return;
 
-            // Agrupa estoque total por produto
-            const stockByProduct = {};
+            // 1. Monta estrutura: { produtoNome: { P: qty, M: qty, ... } }
+            const byProduct = {};
             variants.forEach(v => {
-                const nome = productNameById.get(v.produto_id) || 'Desconhecido';
-                stockByProduct[nome] = (stockByProduct[nome] || 0) + Number(v.estoque_atual || 0);
+                const nome    = productNameById.get(v.produto_id) || 'Desconhecido';
+                const tamanho = (v.tamanho || 'Único').trim().toUpperCase();
+                if (!byProduct[nome]) byProduct[nome] = {};
+                byProduct[nome][tamanho] = (byProduct[nome][tamanho] || 0) + Number(v.estoque_atual || 0);
             });
 
-            const labels = Object.keys(stockByProduct);
-            const data   = Object.values(stockByProduct);
+            const productLabels = Object.keys(byProduct);
 
-            // Define cor da barra: vermelho se crítico (total ≤ 5), verde caso contrário
-            const barColors = data.map(qty =>
-                qty <= 5
-                    ? 'rgba(239, 68, 68, 0.75)'    // danger
-                    : 'rgba(16, 185, 129, 0.75)'    // success
-            );
-            const borderColors = data.map(qty =>
-                qty <= 5 ? 'rgb(239, 68, 68)' : 'rgb(16, 185, 129)'
-            );
+            // 2. Coleta todos os tamanhos únicos ordenados (PP→P→M→G→GG→XGG→demais)
+            const sizeOrder = ['PP','P','M','G','GG','XGG','EGG','ÚNICO'];
+            const allSizesSet = new Set();
+            Object.values(byProduct).forEach(sizes => Object.keys(sizes).forEach(s => allSizesSet.add(s)));
+            const allSizes = [...allSizesSet].sort((a, b) => {
+                const ia = sizeOrder.indexOf(a), ib = sizeOrder.indexOf(b);
+                if (ia === -1 && ib === -1) return a.localeCompare(b);
+                if (ia === -1) return 1;
+                if (ib === -1) return -1;
+                return ia - ib;
+            });
 
-            // Destrói instância anterior para evitar sobreposição
+            // Destrói instância anterior
             if (window._lupEstoqueChart instanceof Chart) {
                 window._lupEstoqueChart.destroy();
+                window._lupEstoqueChart = null;
             }
 
-            if (labels.length === 0) {
+            if (productLabels.length === 0) {
                 canvas.style.display = 'none';
+                if (tagsEl) tagsEl.style.display = 'none';
                 return;
             }
             canvas.style.display = 'block';
 
+            // 3. Estado de seleção de tamanhos (Set vazio = "Todos")
+            let selectedSizes = new Set();
+
+            // 4. Função que calcula os dados do gráfico baseado na seleção
+            function calcData() {
+                return productLabels.map(nome => {
+                    const sizes = byProduct[nome] || {};
+                    if (selectedSizes.size === 0) {
+                        return Object.values(sizes).reduce((a, b) => a + b, 0);
+                    }
+                    let total = 0;
+                    selectedSizes.forEach(s => { total += sizes[s] || 0; });
+                    return total;
+                });
+            }
+
+            // 5. Cores dinâmicas por quantidade
+            function calcColors(data) {
+                return {
+                    bg: data.map(q => q <= 5 ? 'rgba(239,68,68,0.75)' : 'rgba(16,185,129,0.75)'),
+                    border: data.map(q => q <= 5 ? 'rgb(239,68,68)' : 'rgb(16,185,129)')
+                };
+            }
+
+            // 6. Plugin de data labels permanentes no topo das barras
+            const dataLabelPlugin = {
+                id: 'lupDataLabels',
+                afterDatasetsDraw(chart) {
+                    const { ctx, data } = chart;
+                    ctx.save();
+                    chart.getDatasetMeta(0).data.forEach((bar, i) => {
+                        const value = data.datasets[0].data[i];
+                        if (value === 0) return;
+                        ctx.fillStyle = '#f1f5f9';
+                        ctx.font = 'bold 11px Inter, Arial, sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'bottom';
+                        ctx.fillText(value, bar.x, bar.y - 3);
+                    });
+                    ctx.restore();
+                }
+            };
+
+            // 7. Cria o gráfico
+            const initialData   = calcData();
+            const initialColors = calcColors(initialData);
+
             window._lupEstoqueChart = new Chart(canvas, {
                 type: 'bar',
+                plugins: [dataLabelPlugin],
                 data: {
-                    labels,
+                    labels: productLabels,
                     datasets: [{
-                        label: 'Estoque Total (unidades)',
-                        data,
-                        backgroundColor: barColors,
-                        borderColor: borderColors,
+                        label: 'Estoque',
+                        data: initialData,
+                        backgroundColor: initialColors.bg,
+                        borderColor: initialColors.border,
                         borderWidth: 1.5,
                         borderRadius: 6,
                         borderSkipped: false
@@ -1273,44 +1327,93 @@ navItems.forEach(item => {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    animation: { duration: 600, easing: 'easeOutQuart' },
+                    layout: { padding: { top: 18 } },
+                    animation: { duration: 450, easing: 'easeOutQuart' },
                     plugins: {
                         legend: { display: false },
                         tooltip: {
-                            backgroundColor: 'rgba(15,15,30,0.92)',
-                            titleColor: '#fff',
+                            backgroundColor: 'rgba(10,10,25,0.95)',
+                            titleColor: '#ffffff',
                             bodyColor: '#94a3b8',
-                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderColor: 'rgba(255,255,255,0.12)',
                             borderWidth: 1,
-                            padding: 10,
+                            padding: 12,
                             callbacks: {
-                                label: ctx => ` ${ctx.parsed.y} unidades`
+                                title: items => items[0].label,
+                                label: ctx => {
+                                    const label = selectedSizes.size === 0
+                                        ? 'Total'
+                                        : [...selectedSizes].join(' + ');
+                                    return ` ${label}: ${ctx.parsed.y} un.`;
+                                }
                             }
                         }
                     },
                     scales: {
                         x: {
-                            ticks: {
-                                color: '#94a3b8',
-                                font: { size: 11 },
-                                maxRotation: 30
-                            },
+                            ticks: { color: '#94a3b8', font: { size: 11 }, maxRotation: 35 },
                             grid: { color: 'rgba(255,255,255,0.04)' }
                         },
                         y: {
                             beginAtZero: true,
-                            ticks: {
-                                color: '#94a3b8',
-                                font: { size: 11 },
-                                stepSize: 1
-                            },
+                            ticks: { color: '#94a3b8', font: { size: 11 }, precision: 0 },
                             grid: { color: 'rgba(255,255,255,0.07)' }
                         }
                     }
                 }
             });
-        })();
 
+            // 8. Renderiza as tags de filtro de tamanho
+            if (!tagsEl) return;
+            tagsEl.style.display = 'flex';
+
+            function renderTags() {
+                const isAll = selectedSizes.size === 0;
+                tagsEl.innerHTML = ['__TODOS__', ...allSizes].map(size => {
+                    const isAll_btn = size === '__TODOS__';
+                    const isActive  = isAll_btn ? isAll : selectedSizes.has(size);
+                    const label     = isAll_btn ? 'Todos' : size;
+                    const activeStyle = isActive
+                        ? 'background:rgba(249,115,22,0.18); border-color:rgba(249,115,22,0.7); color:#fb923c; font-weight:700;'
+                        : 'background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.12); color:#94a3b8;';
+                    return `<button
+                        data-size="${size}"
+                        style="
+                            ${activeStyle}
+                            border:1px solid; border-radius:6px;
+                            padding:4px 12px; font-size:12px;
+                            cursor:pointer; transition:all 0.2s;
+                            font-family:Inter,Arial,sans-serif;
+                        "
+                    >${label}</button>`;
+                }).join('');
+
+                // Listeners das tags
+                tagsEl.querySelectorAll('button').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const size = btn.dataset.size;
+                        if (size === '__TODOS__') {
+                            selectedSizes.clear();
+                        } else {
+                            if (selectedSizes.has(size)) {
+                                selectedSizes.delete(size);
+                            } else {
+                                selectedSizes.add(size);
+                            }
+                        }
+                        // Atualiza gráfico
+                        const newData   = calcData();
+                        const newColors = calcColors(newData);
+                        window._lupEstoqueChart.data.datasets[0].data            = newData;
+                        window._lupEstoqueChart.data.datasets[0].backgroundColor = newColors.bg;
+                        window._lupEstoqueChart.data.datasets[0].borderColor     = newColors.border;
+                        window._lupEstoqueChart.update();
+                        renderTags();
+                    });
+                });
+            }
+            renderTags();
+        })();
 
         if (window.UserAccess) window.UserAccess.renderAccessModule();
 
