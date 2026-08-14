@@ -129,6 +129,13 @@ window.initAuth = function (deps) {
             }
             if (!user) throw new Error('Seu usuário foi criado no cofre, mas ainda não tem ficha na tabela de usuários. Peça ao Master para criar sua ficha.');
 
+            // 4. Verifica se a conta está ativa antes de conceder acesso
+            if (user.status === false || user.status === 'false' || user.status === 0) {
+                // Encerra a sessão recém-criada no Supabase Auth imediatamente
+                await supabase.auth.signOut();
+                throw new Error('Esta conta está desativada. Entre em contato com o administrador do sistema.');
+            }
+
             // Sprint 1: Garante a hidratação do array de diretorias vinculadas (primária + secundárias)
             if (!user.diretorias_ids || user.diretorias_ids.length === 0) {
                 const linked = (DB.usuario_diretorias || [])
@@ -198,7 +205,19 @@ window.initAuth = function (deps) {
             const { data: { session }, error } = await supabase.auth.getSession();
             if (error) throw error;
             if (session?.user) {
-                onLogin(await restoreAuthenticatedUser(session.user));
+                const restoredUser = await restoreAuthenticatedUser(session.user);
+                // Bloqueia restauração de sessão para contas desativadas
+                if (restoredUser.status === false || restoredUser.status === 'false' || restoredUser.status === 0) {
+                    await supabase.auth.signOut();
+                    showLogin();
+                    const errEl = document.getElementById('login-error');
+                    if (errEl) {
+                        errEl.textContent = 'Esta conta está desativada. Entre em contato com o administrador do sistema.';
+                        errEl.style.display = 'block';
+                    }
+                } else {
+                    onLogin(restoredUser);
+                }
             } else {
                 showLogin();
             }
