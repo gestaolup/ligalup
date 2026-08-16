@@ -1130,6 +1130,49 @@ navItems.forEach(item => {
         document.getElementById('error-overlay').classList.remove('active');
     });
 
+    // --- FASE 2: Quick Actions Bar ---
+    // Função utilitária local para navegar simulando click no nav
+    function qaNavTo(moduleId, afterNav) {
+        const navBtn = document.querySelector(`.nav-item[data-target="${moduleId}"]`);
+        if (navBtn) {
+            navBtn.click();
+            if (afterNav) setTimeout(afterNav, 120); // aguarda o módulo renderizar
+        }
+    }
+
+    document.getElementById('qa-novo-recebimento')?.addEventListener('click', () => {
+        qaNavTo('mod-financeiro', () => {
+            // Foca no campo de valor para início imediato do lançamento
+            const valField = document.getElementById('fin-val');
+            if (valField) {
+                valField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                valField.focus();
+            }
+        });
+    });
+
+    document.getElementById('qa-novo-pedido')?.addEventListener('click', () => {
+        qaNavTo('mod-produtos', () => {
+            // Dispara o modal de novo pedido de compra
+            if (typeof window.openModalNovoPedido === 'function') {
+                window.openModalNovoPedido();
+            } else if (window.Compras?.openModalNovoPedido) {
+                window.Compras.openModalNovoPedido();
+            } else {
+                // Fallback: simula click no botão nativo do módulo
+                document.getElementById('btn-novo-pedido-compra')?.click();
+            }
+        });
+    });
+
+    document.getElementById('qa-cadastrar-atleta')?.addEventListener('click', () => {
+        qaNavTo('mod-esportes');
+    });
+
+    document.getElementById('qa-criar-evento')?.addEventListener('click', () => {
+        qaNavTo('mod-eventos');
+    });
+
     // RENDER 1: EXECUTIVE DASHBOARD
     let dashboardRenderVersion = 0;
     async function renderExecutiveDashboard() {
@@ -1168,6 +1211,20 @@ navItems.forEach(item => {
             acc[item.tipo === 'Entrada' ? 'income' : 'expense'] += Number(item.valor || 0);
             return acc;
         }, { income: 0, expense: 0 });
+
+        // --- Cálculo do mês anterior para tendências ---
+        const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const prevMonthEnd   = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59);
+        const prevMonthly = financial.filter(item => {
+            const d = new Date(item.data_competencia);
+            return d >= prevMonthStart && d <= prevMonthEnd;
+        }).reduce((acc, item) => {
+            acc[item.tipo === 'Entrada' ? 'income' : 'expense'] += Number(item.valor || 0);
+            return acc;
+        }, { income: 0, expense: 0 });
+        const prevNetCash = prevMonthly.income - prevMonthly.expense;
+        const currNetCash = monthly.income - monthly.expense;
+
         const next15Days = new Date(today);
         next15Days.setDate(next15Days.getDate() + 15);
         const scheduledFinancialItems = financial.filter(item => {
@@ -1187,6 +1244,7 @@ navItems.forEach(item => {
         const activeProposals = partners.filter(item => ['prospecção', 'proposta', 'proposta gerada', 'negociação'].includes(String(item.status_funil || '').toLowerCase())).length;
         const unsignedContracts = contracts.filter(item => !item.arquivo_url || /pendente|assinatura/i.test(item.tipo_documento || '')).length;
 
+        // --- FASE 1: Semântica de cor + KPI values ---
         setText('kpi-saldo-caixa', formatCurrency(totalCash));
         setText('kpi-financeiro-mes', `Receitas ${formatCurrency(monthly.income)} · Despesas ${formatCurrency(monthly.expense)}`);
         setText('kpi-atletas-ativos', athletes.length);
@@ -1196,17 +1254,89 @@ navItems.forEach(item => {
         setText('kpi-proximo-evento', nextEvent ? nextEvent.nome : 'Sem eventos');
         setText('kpi-proximo-evento-data', nextEvent ? new Date(nextEvent.data_evento).toLocaleDateString('pt-BR', { dateStyle: 'medium' }) : 'Sem agendamentos futuros');
 
+        // Semântica de cor no KPI de Saldo em Caixa
+        const kpiCaixaIcon = document.getElementById('kpi-caixa-icon');
+        const kpiCaixaH3   = document.getElementById('kpi-saldo-caixa');
+        const cashColor    = totalCash < 0 ? '#ef4444' : '#10b981';
+        if (kpiCaixaIcon) kpiCaixaIcon.style.color = cashColor;
+        if (kpiCaixaH3)   kpiCaixaH3.style.color   = cashColor;
+
+        // Indicadores de tendência — Saldo em Caixa vs mês anterior
+        const trendCaixa = document.getElementById('kpi-caixa-trend');
+        if (trendCaixa) {
+            if (prevNetCash === 0 && currNetCash === 0) {
+                trendCaixa.textContent = '';
+            } else {
+                const diff = currNetCash - prevNetCash;
+                const pct  = prevNetCash !== 0 ? Math.abs(Math.round((diff / Math.abs(prevNetCash)) * 100)) : null;
+                const arrow = diff >= 0 ? '▲' : '▼';
+                const label = pct !== null ? `${arrow} ${pct}% vs mês anterior` : `${arrow} ${formatCurrency(Math.abs(diff))} vs mês anterior`;
+                trendCaixa.textContent = label;
+                trendCaixa.style.color = diff >= 0 ? '#10b981' : '#ef4444';
+            }
+        }
+
+        // Tendência — Atletas (estático por ora: não temos histórico de atletas por mês)
+        const trendAtletas = document.getElementById('kpi-atletas-trend');
+        if (trendAtletas) {
+            const meta = 150;
+            const pct  = Math.round((athletes.length / meta) * 100);
+            trendAtletas.textContent = `${pct}% da meta (${meta} atletas)`;
+            trendAtletas.style.color = athletes.length >= meta ? '#10b981' : athletes.length >= meta * 0.7 ? '#f59e0b' : '#ef4444';
+        }
+
+        // Tendência — Compras Pendentes
+        const trendCompras = document.getElementById('kpi-compras-trend');
+        if (trendCompras) {
+            if (pendingOrders === 0) {
+                trendCompras.textContent = '✓ Nenhuma pendência';
+                trendCompras.style.color = '#10b981';
+            } else {
+                trendCompras.textContent = `${pendingOrders} aguardando aprovação`;
+                trendCompras.style.color = pendingOrders >= 3 ? '#ef4444' : '#f59e0b';
+            }
+        }
+
+        // --- FASE 2: Alertas Acionáveis ---
+        // Função utilitária para navegar para um módulo via click no nav-item
+        function navTo(moduleId) {
+            const navBtn = document.querySelector(`.nav-item[data-target="${moduleId}"]`);
+            if (navBtn) navBtn.click();
+        }
+
         const alertsList = document.getElementById('dashboard-alerts-list');
         if (alertsList) {
-            const alerts = [
-                [pendingDocuments, 'fas fa-file-medical', 'documentos de atletas aguardam validação'],
-                [pendingOrders, 'fas fa-shopping-cart', 'pedidos de compra aguardam liberação'],
-                [scheduledFinancialItems, 'fas fa-calendar-dollar', 'lançamentos financeiros previstos para os próximos 15 dias'],
-                [criticalVariants.length, 'fas fa-exclamation-triangle', 'itens com estoque crítico'],
-                [unsignedContracts, 'fas fa-file-signature', 'contratos pendentes de assinatura'],
-                [activeProposals, 'fas fa-handshake', 'propostas de parceria em andamento']
-            ].filter(([count]) => count > 0);
-            alertsList.innerHTML = alerts.length ? alerts.map(([count, icon, label]) => `<div style="display:flex; align-items:center; gap:10px; padding:10px; border:1px solid var(--border-glass); border-radius:var(--radius-sm);"><i class="${icon}" style="color:var(--warning);"></i><span style="font-size:13px;"><b>${count}</b> ${label}</span></div>`).join('') : '<p style="color:var(--text-secondary); font-size:13px; margin:0;">Nenhuma pendência operacional no momento.</p>';
+            const alertDefs = [
+                { count: pendingDocuments,       icon: 'fas fa-file-medical',      label: 'documentos de atletas aguardam validação',            actionLabel: 'Ver Atletas',       action: () => navTo('mod-esportes') },
+                { count: pendingOrders,          icon: 'fas fa-shopping-cart',     label: 'pedidos de compra aguardam liberação',                 actionLabel: 'Aprovar Pedidos',   action: () => navTo('mod-produtos') },
+                { count: scheduledFinancialItems,icon: 'fas fa-calendar-alt',      label: 'lançamentos financeiros previstos nos próximos 15 dias', actionLabel: 'Ver Tesouraria',   action: () => navTo('mod-financeiro') },
+                { count: criticalVariants.length,icon: 'fas fa-exclamation-triangle',label: 'itens com estoque crítico',                           actionLabel: 'Repor Estoque',     action: () => navTo('mod-produtos') },
+                { count: unsignedContracts,      icon: 'fas fa-file-signature',    label: 'contratos pendentes de assinatura',                    actionLabel: 'Ver GED',           action: () => navTo('mod-ged') },
+                { count: activeProposals,        icon: 'fas fa-handshake',         label: 'propostas de parceria em andamento',                   actionLabel: 'Ver Parcerias',     action: () => navTo('mod-parcerias') }
+            ].filter(a => a.count > 0);
+
+            if (alertDefs.length === 0) {
+                alertsList.innerHTML = '<p style="color:var(--text-secondary); font-size:13px; margin:0;">Nenhuma pendência operacional no momento.</p>';
+            } else {
+                alertsList.innerHTML = alertDefs.map((a, i) => `
+                    <div data-alert-idx="${i}" style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--border-glass); border-radius:var(--radius-sm); transition:background .15s;">
+                        <span style="display:flex; align-items:center; gap:10px; font-size:13px; flex:1;">
+                            <i class="${a.icon}" style="color:var(--warning); width:16px; text-align:center;"></i>
+                            <span><b>${a.count}</b> ${a.label}</span>
+                        </span>
+                        <button data-alert-action="${i}" style="flex-shrink:0; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:var(--text-secondary); border-radius:5px; padding:4px 10px; font-size:11px; cursor:pointer; white-space:nowrap; transition:all .2s;">
+                            ${a.actionLabel} →
+                        </button>
+                    </div>`).join('');
+
+                // Registra listeners nos botões de ação
+                alertsList.querySelectorAll('[data-alert-action]').forEach(btn => {
+                    const idx = Number(btn.getAttribute('data-alert-action'));
+                    btn.addEventListener('click', () => alertDefs[idx].action());
+                    btn.addEventListener('mouseover', () => { btn.style.background = 'rgba(255,255,255,0.12)'; btn.style.color = '#fff'; });
+                    btn.addEventListener('mouseout',  () => { btn.style.background = 'rgba(255,255,255,0.06)'; btn.style.color = 'var(--text-secondary)'; });
+                });
+            }
         }
 
         const eventsList = document.getElementById('dashboard-upcoming-events');
