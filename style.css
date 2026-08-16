@@ -41,17 +41,24 @@
     padding: 0;
 }
 
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
 body {
     background-color: var(--bg-primary);
     color: var(--text-primary);
     font-family: var(--font-body);
-    min-height: 100vh;
-    overflow-x: hidden;
+    height: 100vh;
     background-image: 
         radial-gradient(at 10% 20%, rgba(234, 88, 12, 0.08) 0px, transparent 50%),
         radial-gradient(at 90% 10%, rgba(220, 38, 38, 0.06) 0px, transparent 50%),
         radial-gradient(at 50% 80%, rgba(234, 88, 12, 0.04) 0px, transparent 50%);
     background-attachment: fixed;
+    background-size: cover;
 }
 
 /* Custom Scrollbar */
@@ -77,7 +84,9 @@ body {
 .app-wrapper {
     display: grid;
     grid-template-columns: 260px 1fr;
-    min-height: 100vh;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
 }
 
 /* Sidebar navigation */
@@ -90,8 +99,9 @@ aside {
     flex-direction: column;
     justify-content: space-between;
     height: 100vh;
-    position: sticky;
-    top: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
     z-index: 10;
 }
 
@@ -227,9 +237,13 @@ aside {
 
 /* Main Content Area */
 main {
-    padding: 40px;
+    padding: 32px 40px;
     overflow-y: auto;
+    overflow-x: hidden;
     height: 100vh;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 header {
@@ -334,6 +348,8 @@ header {
 
 .module-section.active {
     display: block;
+    flex: 1;
+    padding-bottom: 32px;
 }
 
 @keyframes fadeIn {
