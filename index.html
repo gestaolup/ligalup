@@ -399,23 +399,106 @@
                         <div id="dashboard-upcoming-events" style="display:flex; flex-direction:column; gap:9px;"></div>
                     </div>
                 </div>
-                <div class="glass-card" style="padding:20px; margin-bottom:24px;">
-                    <!-- Cabeçalho do card -->
-                    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <h3 style="font-family:var(--font-heading); margin:0;"><i class="fas fa-boxes" style="color:var(--warning);"></i> Resumo de Estoque</h3>
-                            <span id="dashboard-stock-summary" class="badge badge-secondary">Sem dados cadastrados</span>
+                <!-- FASE 3: TERMÔMETRO DE METAS -->
+                <div class="metas-grid" style="margin-bottom:24px;">
+                    <!-- Meta 1: Atletas Ativos -->
+                    <div class="glass-card meta-card" style="padding:20px;">
+                        <div class="meta-header">
+                            <span class="meta-title">
+                                <i class="fas fa-users" style="color:#818cf8;"></i> Atletas Ativos
+                            </span>
+                            <span id="meta-atletas-pct" class="meta-pct-badge">0%</span>
                         </div>
-                        <!-- Tags de filtro por tamanho — preenchidas pelo JS -->
-                        <div id="stock-size-tags" style="display:none; flex-wrap:wrap; gap:6px; align-items:center;"></div>
+                        <div class="meta-values">
+                            <span id="meta-atletas-atual" class="meta-atual">0</span>
+                            <span class="meta-total">/ 150 atletas</span>
+                        </div>
+                        <div class="meta-track">
+                            <div id="meta-atletas-fill" class="meta-fill" style="width:0%; background:#10b981;"></div>
+                        </div>
+                        <span id="meta-atletas-label" class="meta-label">Carregando...</span>
                     </div>
-                    <!-- Badges de itens críticos -->
-                    <div id="dashboard-stock-list" style="display:flex; flex-wrap:wrap; gap:9px; margin-bottom:18px;"></div>
-                    <!-- Gráfico -->
-                    <div style="position:relative; width:100%; height:240px;">
-                        <canvas id="chart-estoque" style="display:block; width:100%; height:100%;"></canvas>
+
+                    <!-- Meta 2: Receita Mensal -->
+                    <div class="glass-card meta-card" style="padding:20px;">
+                        <div class="meta-header">
+                            <span class="meta-title">
+                                <i class="fas fa-chart-line" style="color:#10b981;"></i> Receita Mensal
+                            </span>
+                            <span id="meta-receita-pct" class="meta-pct-badge">0%</span>
+                        </div>
+                        <div class="meta-values">
+                            <span id="meta-receita-atual" class="meta-atual">R$ 0</span>
+                            <span class="meta-total">/ R$ 5.000</span>
+                        </div>
+                        <div class="meta-track">
+                            <div id="meta-receita-fill" class="meta-fill" style="width:0%; background:#10b981;"></div>
+                        </div>
+                        <span id="meta-receita-label" class="meta-label">Carregando...</span>
+                    </div>
+
+                    <!-- Meta 3: Pedidos Pendentes -->
+                    <div class="glass-card meta-card" style="padding:20px;">
+                        <div class="meta-header">
+                            <span class="meta-title">
+                                <i class="fas fa-shopping-cart" style="color:#f97316;"></i> Compras Pendentes
+                            </span>
+                            <span id="meta-pedidos-pct" class="meta-pct-badge">—</span>
+                        </div>
+                        <div class="meta-values">
+                            <span id="meta-pedidos-atual" class="meta-atual">0</span>
+                            <span class="meta-total">pedidos</span>
+                        </div>
+                        <div class="meta-track">
+                            <div id="meta-pedidos-fill" class="meta-fill" style="width:0%; background:#10b981;"></div>
+                        </div>
+                        <span id="meta-pedidos-label" class="meta-label">Carregando...</span>
                     </div>
                 </div>
+
+                <!-- FASE 4: GRID DE GRÁFICOS LADO A LADO (Estoque 60% | Financeiro 40%) -->
+                <div class="dashboard-charts-grid">
+
+                    <!-- Card Estoque (3fr) -->
+                    <div class="glass-card" style="padding:20px;">
+                        <!-- Cabeçalho do card -->
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <h3 style="font-family:var(--font-heading); margin:0;"><i class="fas fa-boxes" style="color:var(--warning);"></i> Resumo de Estoque</h3>
+                                <span id="dashboard-stock-summary" class="badge badge-secondary">Sem dados cadastrados</span>
+                            </div>
+                            <!-- Tags de filtro por tamanho — preenchidas pelo JS -->
+                            <div id="stock-size-tags" style="display:none; flex-wrap:wrap; gap:6px; align-items:center;"></div>
+                        </div>
+                        <!-- Badges de itens críticos -->
+                        <div id="dashboard-stock-list" style="display:flex; flex-wrap:wrap; gap:9px; margin-bottom:18px;"></div>
+                        <!-- Gráfico -->
+                        <div style="position:relative; width:100%; height:220px;">
+                            <canvas id="chart-estoque" style="display:block; width:100%; height:100%;"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Card Financeiro (2fr) -->
+                    <div class="glass-card" style="padding:20px;">
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
+                            <h3 style="font-family:var(--font-heading); margin:0;"><i class="fas fa-chart-bar" style="color:#10b981;"></i> Saúde Financeira</h3>
+                            <span class="badge badge-secondary">6 meses</span>
+                        </div>
+                        <div style="display:flex; gap:16px; margin-bottom:12px; flex-wrap:wrap;">
+                            <span style="display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-secondary);">
+                                <span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:rgba(16,185,129,0.7);"></span> Receitas
+                            </span>
+                            <span style="display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-secondary);">
+                                <span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:rgba(239,68,68,0.7);"></span> Despesas
+                            </span>
+                        </div>
+                        <div style="position:relative; width:100%; height:220px;">
+                            <canvas id="chart-financeiro" style="display:block; width:100%; height:100%;"></canvas>
+                        </div>
+                    </div>
+
+                </div>
+
 
                 <div class="dashboard-calendar-grid" style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 24px; margin-bottom: 24px;">
                     <!-- Card do Calendário -->

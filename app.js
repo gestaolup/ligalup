@@ -1344,6 +1344,202 @@ navItems.forEach(item => {
             eventsList.innerHTML = upcomingEvents.length ? upcomingEvents.map(event => `<div style="display:flex; justify-content:space-between; gap:12px; padding:10px; border:1px solid var(--border-glass); border-radius:var(--radius-sm);"><span style="font-size:13px;"><b>${escapeSportsHtml(event.nome)}</b><br><small style="color:var(--text-secondary);">${event.tipo || 'Evento'} · ${event.status_aprovacao || 'Sem status'}</small></span><span class="badge badge-secondary">${new Date(event.data_evento).toLocaleDateString('pt-BR')}</span></div>`).join('') : '<p style="color:var(--text-secondary); font-size:13px; margin:0;">Sem eventos ou jogos futuros cadastrados.</p>';
         }
 
+        // -----------------------------------------------------------------------
+        // FASE 3 — TERMÔMETRO DE METAS
+        // Constantes de meta (futuro: buscar de tabela de configurações no Supabase)
+        // -----------------------------------------------------------------------
+        (function renderMetas() {
+            const METAS = {
+                atletas:  { meta: 150,    atual: athletes.length,         formato: 'num' },
+                receita:  { meta: 5000,   atual: monthly.income,          formato: 'brl' },
+                pedidos:  { meta: 0,      atual: pendingOrders,           formato: 'inv' } // Invertido: 0 é a meta
+            };
+
+            function metaColor(pct, invertido) {
+                if (invertido) return pct === 0 ? '#10b981' : pct <= 30 ? '#f59e0b' : '#ef4444';
+                return pct >= 100 ? '#10b981' : pct >= 70 ? '#f59e0b' : '#ef4444';
+            }
+
+            function applyMeta(key, { meta, atual, formato }) {
+                const fill   = document.getElementById(`meta-${key}-fill`);
+                const pctEl  = document.getElementById(`meta-${key}-pct`);
+                const atualEl= document.getElementById(`meta-${key}-atual`);
+                const labelEl= document.getElementById(`meta-${key}-label`);
+                if (!fill || !pctEl || !atualEl || !labelEl) return;
+
+                const invertido = formato === 'inv';
+                let pct;
+                if (invertido) {
+                    // Para compras pendentes: quanto menos, melhor. 0 = 100%
+                    pct = atual === 0 ? 100 : Math.min(Math.round((atual / Math.max(meta + 5, atual + 1)) * 100), 100);
+                } else {
+                    pct = meta > 0 ? Math.min(Math.round((atual / meta) * 100), 100) : 0;
+                }
+
+                const cor = metaColor(pct, invertido);
+
+                // Aplica preenchimento e cor
+                fill.style.width = `${pct}%`;
+                fill.style.backgroundColor = cor;
+
+                // Badge de percentual
+                pctEl.textContent = `${pct}%`;
+                pctEl.style.background = `${cor}22`;
+                pctEl.style.color = cor;
+
+                // Valor atual formatado
+                if (formato === 'brl') {
+                    atualEl.textContent = atual.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+                } else {
+                    atualEl.textContent = atual;
+                }
+                atualEl.style.color = cor;
+
+                // Label de contexto
+                if (invertido) {
+                    labelEl.textContent = atual === 0 ? '✓ Meta atingida — nenhum pendente' : `${atual} pedido${atual > 1 ? 's' : ''} ainda aguardam aprovação`;
+                    labelEl.style.color = cor;
+                } else if (pct >= 100) {
+                    labelEl.textContent = '✓ Meta atingida!';
+                    labelEl.style.color = '#10b981';
+                } else {
+                    const restante = formato === 'brl'
+                        ? (meta - atual).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+                        : `${meta - atual}`;
+                    labelEl.textContent = `Faltam ${restante} para a meta`;
+                    labelEl.style.color = cor;
+                }
+            }
+
+            Object.entries(METAS).forEach(([key, cfg]) => applyMeta(key, cfg));
+        })();
+
+        // -----------------------------------------------------------------------
+        // FASE 4 — GRÁFICO FINANCEIRO: Receitas vs Despesas (últimos 6 meses)
+        // Reutiliza dados cacheados em `financial` — zero requisições extras
+        // -----------------------------------------------------------------------
+        (function renderFinancialChart() {
+            const canvas = document.getElementById('chart-financeiro');
+            if (!canvas || typeof Chart === 'undefined') return;
+
+            // Monta os últimos 6 meses como labels e chaves de agrupamento
+            const months = [];
+            for (let i = 5; i >= 0; i--) {
+                const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+                months.push({
+                    label: d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+                    year:  d.getFullYear(),
+                    month: d.getMonth()
+                });
+            }
+
+            const receitas  = months.map(() => 0);
+            const despesas  = months.map(() => 0);
+
+            financial.forEach(item => {
+                const d = new Date(item.data_competencia);
+                const idx = months.findIndex(m => m.year === d.getFullYear() && m.month === d.getMonth());
+                if (idx === -1) return;
+                const val = Number(item.valor || 0);
+                if (item.tipo === 'Entrada') receitas[idx] += val;
+                else                        despesas[idx] += val;
+            });
+
+            // Plugin de data labels reutilizado (adaptado para dois datasets)
+            const dualLabelPlugin = {
+                id: 'lupDualLabels',
+                afterDatasetsDraw(chart) {
+                    const { ctx } = chart;
+                    ctx.save();
+                    ctx.font = 'bold 9px Inter, Arial, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    chart.data.datasets.forEach((ds, di) => {
+                        chart.getDatasetMeta(di).data.forEach((bar, i) => {
+                            const val = ds.data[i];
+                            if (!val || val < 10) return;
+                            ctx.fillStyle = di === 0 ? '#6ee7b7' : '#fca5a5';
+                            const label = val >= 1000
+                                ? `R$${(val / 1000).toFixed(1)}k`
+                                : `R$${val.toFixed(0)}`;
+                            ctx.fillText(label, bar.x, bar.y - 2);
+                        });
+                    });
+                    ctx.restore();
+                }
+            };
+
+            // Destrói instância anterior
+            if (window._lupFinanceChart instanceof Chart) {
+                window._lupFinanceChart.destroy();
+                window._lupFinanceChart = null;
+            }
+
+            window._lupFinanceChart = new Chart(canvas, {
+                type: 'bar',
+                plugins: [dualLabelPlugin],
+                data: {
+                    labels: months.map(m => m.label),
+                    datasets: [
+                        {
+                            label: 'Receitas',
+                            data: receitas,
+                            backgroundColor: 'rgba(16,185,129,0.65)',
+                            borderColor: 'rgb(16,185,129)',
+                            borderWidth: 1.5,
+                            borderRadius: 5,
+                            borderSkipped: false
+                        },
+                        {
+                            label: 'Despesas',
+                            data: despesas,
+                            backgroundColor: 'rgba(239,68,68,0.65)',
+                            borderColor: 'rgb(239,68,68)',
+                            borderWidth: 1.5,
+                            borderRadius: 5,
+                            borderSkipped: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: { top: 18 } },
+                    animation: { duration: 500, easing: 'easeOutQuart' },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(10,10,25,0.95)',
+                            titleColor: '#fff',
+                            bodyColor: '#94a3b8',
+                            borderColor: 'rgba(255,255,255,0.12)',
+                            borderWidth: 1,
+                            padding: 12,
+                            callbacks: {
+                                label: ctx => ` ${ctx.dataset.label}: ${Number(ctx.parsed.y).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#94a3b8', font: { size: 10 } },
+                            grid:  { color: 'rgba(255,255,255,0.04)' }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#94a3b8',
+                                font: { size: 10 },
+                                precision: 0,
+                                callback: val => val >= 1000 ? `R$${(val/1000).toFixed(0)}k` : `R$${val}`
+                            },
+                            grid: { color: 'rgba(255,255,255,0.07)' }
+                        }
+                    }
+                }
+            });
+        })();
+
         const stockList = document.getElementById('dashboard-stock-list');
         setText('dashboard-stock-summary', variants.length ? `${criticalVariants.length} crítico(s) de ${variants.length} variantes` : 'Sem dados cadastrados');
         if (stockList) {
