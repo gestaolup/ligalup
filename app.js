@@ -182,6 +182,18 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('error-overlay').classList.add('active');
     }
 
+    // Helper universal para Toast / Snackbar não intrusivo
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `chat-toast ${type}`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            if (toast.parentNode) toast.remove();
+        }, 2800);
+    }
+    window.showToast = showToast;
+
     // Central de Interceptação de Escrita (Falso SGBD Engine)
     const DB_Engine = {
         // Simula UPDATE em Eventos (RN-EV-01 & RN-EV-02)
@@ -361,8 +373,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return true;
         },
 
-        // Simula UPDATE de Estoque de Produtos / Vendas (RN-PROD-01)
-        mutateProductStock: function(variantId, quantityDelta) {
+        // UPDATE de Estoque de Produtos / Vendas (RN-PROD-01) com persistência no Supabase
+        mutateProductStock: async function(variantId, quantityDelta) {
             const variant = DB.produto_variantes.find(pv => pv.id === variantId);
             if (!variant) return false;
 
@@ -381,9 +393,23 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             variant.estoque_atual = newStock;
-            logSQL(`Estoque de variante atualizado: ${oldStock} -> ${newStock}`, 'success');
+            logSQL(`Estoque de variante atualizado localmente: ${oldStock} -> ${newStock}`, 'success');
             refreshAllUI();
-            return true;
+
+            try {
+                const { error } = await supabase
+                    .from('produto_variantes')
+                    .update({ estoque_atual: newStock })
+                    .eq('id', variantId);
+
+                if (error) throw error;
+                return true;
+            } catch (err) {
+                console.error('[mutateProductStock] Erro ao persistir estoque no Supabase:', err);
+                variant.estoque_atual = oldStock;
+                refreshAllUI();
+                throw err;
+            }
         },
 
         // Simula UPDATE em Atletas (RN-ESP-01)
@@ -2410,45 +2436,118 @@ navItems.forEach(item => {
         });
     }
 
-    // Event Handler: Sell / Distribute variant (tests RN-PROD-01 stocks Check)
-    document.getElementById('btn-distribute-product').addEventListener('click', () => {
+    // Event Handler: Venda / Distribuição de produto com Optimistic UI e persistência no Supabase
+    document.getElementById('btn-distribute-product').addEventListener('click', async () => {
         const variantId = document.getElementById('dist-size-select').value;
         const quant = parseInt(document.getElementById('dist-qty').value) || 0;
-        const buyer = document.getElementById('dist-buyer').value;
+        const buyer = document.getElementById('dist-buyer').value.trim();
 
         if (!variantId || quant <= 0 || !buyer) {
-            alert('Preencha os dados de distribuição corretamente.');
+            showToast('Preencha os dados de distribuição corretamente.', 'error');
             return;
         }
 
-        // Simula a venda/decremento de estoque (Delta negativo)
-        const isSuccess = DB_Engine.mutateProductStock(variantId, -quant);
-        
-        if (isSuccess) {
-            const variant = DB.produto_variantes.find(v => v.id === variantId);
-            const product = DB.produtos.find(p => p.id === variant.produto_id);
-            const totalVal = product.preco_venda * quant;
-            
-            // Injeta o lançamento financeiro automático correspondente à venda — persistido de verdade no Supabase
-            const financeEntry = {
-                id: crypto.randomUUID(),
-                tipo: 'Entrada',
-                categoria: `Venda ${product.nome} (Qtd: ${quant})`,
-                valor: totalVal,
-                data_competencia: new Date().toISOString().split('T')[0],
-                status_conciliacao: false,
-                evento_id: null,
-                produto_id: product.id
-            };
-            supabase.from('lancamentos_financeiros').insert([financeEntry]).then(({ error }) => {
-                if (error) console.error('[Lançamentos] Erro ao gerar lançamento de venda:', error);
-            });
-            DB.lancamentos_financeiros.push(financeEntry);
-            logSQL(`Venda registrada! Entrada de R$ ${totalVal.toFixed(2)} inserida no caixa do produto '${product.nome}' (Variant size: ${variant.tamanho}).`, 'success');
-            
-            document.getElementById('dist-qty').value = '1';
-            document.getElementById('dist-buyer').value = '';
+        const variant = DB.produto_variantes.find(v => v.id === variantId);
+        if (!variant) {
+            showToast('Variante selecionada não encontrada.', 'error');
+            return;
+        }
+
+        const product = DB.produtos.find(p => p.id === variant.produto_id);
+        const oldStock = variant.estoque_atual;
+        const newStock = oldStock - quant;
+
+        // Validação RN-PROD-01: Estoque Blindado (chk_estoque_positivo)
+        if (newStock < 0) {
+            const msg = `Regra RN-PROD-01 (Estoque Blindado): Quantidade solicitada (${quant}) excede o estoque disponível (${oldStock}) da variante '${variant.tamanho}'.`;
+            logSQL(msg, 'error');
+            showDBErrorDialog('23514 (CHECK Constraint Violation)', 'chk_estoque_positivo', msg);
+            return;
+        }
+
+        // -------------------------------------------------------------------
+        // 1. FLUXO OTIMISTA (IMEDIATO): Atualiza estado local e DOM
+        // -------------------------------------------------------------------
+        variant.estoque_atual = newStock;
+
+        const totalVal = (product?.preco_venda || 0) * quant;
+        const financeId = crypto.randomUUID();
+        const financeEntry = {
+            id: financeId,
+            tipo: 'Entrada',
+            categoria: `Venda ${product ? product.nome : 'Produto'} (Qtd: ${quant}) - ${buyer}`,
+            valor: totalVal,
+            data_competencia: new Date().toISOString().split('T')[0],
+            status_conciliacao: false,
+            evento_id: null,
+            produto_id: product ? product.id : null
+        };
+        DB.lancamentos_financeiros.push(financeEntry);
+
+        // Limpa campos e atualiza UI imediatamente
+        const oldQtyVal = document.getElementById('dist-qty').value;
+        const oldBuyerVal = document.getElementById('dist-buyer').value;
+        document.getElementById('dist-qty').value = '1';
+        document.getElementById('dist-buyer').value = '';
+
+        logSQL(`[Optimistic UI] Venda aplicada localmente: Estoque ${oldStock} → ${newStock}. Sincronizando com Supabase...`, 'query');
+        refreshAllUI();
+
+        // -------------------------------------------------------------------
+        // 2. PERSISTÊNCIA EM BACKGROUND COM SUPABASE + TRATAMENTO DE ERRO
+        // -------------------------------------------------------------------
+        const btnDistribute = document.getElementById('btn-distribute-product');
+        if (btnDistribute) btnDistribute.disabled = true;
+
+        try {
+            // Atualiza estoque no Supabase
+            const { error: stockError } = await supabase
+                .from('produto_variantes')
+                .update({ estoque_atual: newStock })
+                .eq('id', variantId);
+
+            if (stockError) throw stockError;
+
+            // Insere lançamento financeiro da venda no Supabase
+            const { error: finError } = await supabase
+                .from('lancamentos_financeiros')
+                .insert([financeEntry]);
+
+            if (finError) {
+                console.warn('[Lançamentos] Aviso ao registrar lançamento financeiro da venda:', finError);
+            }
+
+            // ---------------------------------------------------------------
+            // 3. FEEDBACK VISUAL DE SUCESSO
+            // ---------------------------------------------------------------
+            logSQL(`Venda registrada com sucesso no Supabase! Entrada de R$ ${totalVal.toFixed(2)} inserida no caixa do produto '${product ? product.nome : 'Produto'}' (Tamanho: ${variant.tamanho}).`, 'success');
+            showToast('✅ Venda registrada e estoque atualizado', 'success');
+
+        } catch (err) {
+            console.error('[Vendas] Erro ao persistir venda no Supabase:', err);
+            logSQL(`[ROLLBACK] Falha ao persistir venda no Supabase: ${err.message}`, 'error');
+
+            // ---------------------------------------------------------------
+            // 4. ROLLBACK EM CASO DE FALHA
+            // ---------------------------------------------------------------
+            variant.estoque_atual = oldStock;
+            const finIdx = DB.lancamentos_financeiros.findIndex(f => f.id === financeId);
+            if (finIdx !== -1) {
+                DB.lancamentos_financeiros.splice(finIdx, 1);
+            }
+
+            // Restaura campos do formulário
+            document.getElementById('dist-qty').value = oldQtyVal;
+            document.getElementById('dist-buyer').value = oldBuyerVal;
+
+            // Reverte a interface
             refreshAllUI();
+
+            // Notifica o usuário sobre o erro
+            showToast('Erro ao processar venda', 'error');
+            showDBErrorDialog(err.code || 'DB_ERROR', 'produto_variantes', 'Erro ao persistir venda: ' + (err.message || 'Falha de comunicação com o banco de dados.'));
+        } finally {
+            if (btnDistribute) btnDistribute.disabled = false;
         }
     });
 
@@ -2561,11 +2660,7 @@ navItems.forEach(item => {
     }
 
     function showSportsToast(message, type = 'success') {
-        const toast = document.createElement('div');
-        toast.className = `chat-toast ${type}`;
-        toast.textContent = message;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 2800);
+        showToast(message, type);
     }
 
     function escapeSportsHtml(value) {
